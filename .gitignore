@@ -29,7 +29,7 @@ Thumbs.db
 
 # Ton dossier de build spécifique
 HeistDay_Build/
-
+Run/
 # Fichiers de projet utilisateur
 *.uproject.user
 
