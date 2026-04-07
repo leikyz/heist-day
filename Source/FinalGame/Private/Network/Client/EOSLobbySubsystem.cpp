@@ -236,13 +236,17 @@ void UEOSLobbySubsystem::CreateLobby()
 
 	FCreateLobby::Params Params;
 	Params.LocalAccountId = IdentitySubsystem->GetLocalAccountId();
-	Params.LocalName = TEXT("PartyLobby");
+	Params.LocalName = TEXT("MatchmakingLobby"); // Local name for the handle
 	Params.SchemaId = FName(TEXT("GameLobby"));
-	Params.MaxMembers = 4;
+	Params.MaxMembers = 2; // FIX: Set to 2 for 1v1 matchmaking
 	Params.bPresenceEnabled = true;
 	Params.JoinPolicy = UE::Online::ELobbyJoinPolicy::PublicAdvertised;
 
-	UE_LOG(LogTemp, Warning, TEXT("EOSLobbySubsystem: Creating lobby..."));
+	// --- CRITICAL FIX: Add the attribute so other clients can find this lobby ---
+	FSchemaVariant BucketValue(TEXT("MainMatchmaking"));
+	Params.Attributes.Add(FName(TEXT("BucketId")), BucketValue);
+
+	UE_LOG(LogTemp, Warning, TEXT("EOSLobbySubsystem: Creating Matchmaking Lobby with BucketId..."));
 
 	Services->GetLobbiesInterface()->CreateLobby(MoveTemp(Params)).OnComplete(
 		[this](const UE::Online::TOnlineResult<UE::Online::FCreateLobby>& Result)
@@ -251,7 +255,6 @@ void UEOSLobbySubsystem::CreateLobby()
 		}
 	);
 }
-
 void UEOSLobbySubsystem::OnCreateLobbyComplete(const TOnlineResult<FCreateLobby>& Result)
 {
 	if (Result.IsOk())

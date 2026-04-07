@@ -1,59 +1,64 @@
 #include "Network/Server/EOSServerSubsystem.h"
-#include "OnlineSubsystem.h"
-#include "OnlineSessionSettings.h"
+#include "Online/OnlineAsyncOpHandle.h"
+
+using namespace UE::Online;
+
+bool UEOSServerSubsystem::ShouldCreateSubsystem(UObject* Outer) const
+{
+	return IsRunningDedicatedServer();
+}
+
+void UEOSServerSubsystem::Initialize(FSubsystemCollectionBase& Collection)
+{
+	Super::Initialize(Collection);
+	CreateServerSession();
+}
 
 void UEOSServerSubsystem::CreateServerSession()
 {
-	// Fetch the stable OSSv1 subsystem
-	IOnlineSubsystem* Subsystem = IOnlineSubsystem::Get();
-	if (!Subsystem)
-	{
-		UE_LOG(LogTemp, Error, TEXT("No OnlineSubsystem found!"));
-		return;
-	}
+	IOnlineServicesPtr Services = UE::Online::GetServices();
+	if (!Services) return;
 
-	IOnlineSessionPtr SessionInterface = Subsystem->GetSessionInterface();
-	if (!SessionInterface.IsValid())
-	{
-		UE_LOG(LogTemp, Error, TEXT("No Session Interface found!"));
-		return;
-	}
+	ISessionsPtr Sessions = Services->GetSessionsInterface();
+	if (!Sessions.IsValid()) return;
 
-	// Configure the Dedicated Server Session Settings
-	FOnlineSessionSettings SessionSettings;
-	SessionSettings.bIsLANMatch = false;
-	SessionSettings.bIsDedicated = true; 
-	SessionSettings.bShouldAdvertise = true;
-	SessionSettings.bAllowJoinInProgress = true;
-	SessionSettings.NumPublicConnections = 16;
-	SessionSettings.bUseLobbiesIfAvailable = false;
-	SessionSettings.bUsesPresence = false; // Servers don't have presence
+	FCreateSession::Params Params;
+	Params.SessionName = FName(TEXT("gamesession"));
 
-	SessionSettings.Set(FName("BucketId"), FString("DedicatedServer"), EOnlineDataAdvertisementType::ViaOnlineService);
+	Params.SessionSettings.SchemaName = FName(TEXT("gamesession"));
+	Params.SessionSettings.NumMaxConnections = 2; // 1v1
+	Params.SessionSettings.JoinPolicy = ESessionJoinPolicy::Public;
 
-	SessionInterface->OnCreateSessionCompleteDelegates.AddUObject(this, &UEOSServerSubsystem::OnCreateSessionComplete);
+	// Tag for Matchmaking
+	FCustomSessionSetting BucketSetting;
+	BucketSetting.Data = FSchemaVariant(TEXT("MainMatchmaking"));
+	BucketSetting.Visibility = ESchemaAttributeVisibility::Public;
+	Params.SessionSettings.CustomSettings.Add(FName(TEXT("BucketId")), BucketSetting);
 
-	UE_LOG(LogTemp, Log, TEXT("Attempting to Create Dedicated Server Session via OSSv1..."));
+	// Tag with Server IP for ClientTravel
+	FCustomSessionSetting IPSetting;
+	IPSetting.Data = FSchemaVariant(TEXT("127.0.0.1")); // Replace with logic to get actual Server IP
+	IPSetting.Visibility = ESchemaAttributeVisibility::Public;
+	Params.SessionSettings.CustomSettings.Add(FName(TEXT("ServerIP")), IPSetting);
 
-	// Create the session (0 is safely ignored because bIsDedicated is true)
-	SessionInterface->CreateSession(0, FName("GameSession"), SessionSettings);
+	UE_LOG(LogTemp, Warning, TEXT("SERVER: Registering 1v1 Session for Matchmaking..."));
+
+	Sessions->CreateSession(MoveTemp(Params)).OnComplete(
+		[this](const TOnlineResult<FCreateSession>& Result)
+		{
+			OnSessionCreated(Result);
+		}
+	);
 }
 
-void UEOSServerSubsystem::OnCreateSessionComplete(FName SessionName, bool bWasSuccessful)
+void UEOSServerSubsystem::OnSessionCreated(const TOnlineResult<FCreateSession>& Result)
 {
-	// Clean up the delegate
-	IOnlineSubsystem* Subsystem = IOnlineSubsystem::Get();
-	if (Subsystem)
+	if (Result.IsOk())
 	{
-		Subsystem->GetSessionInterface()->ClearOnCreateSessionCompleteDelegates(this);
-	}
-
-	if (bWasSuccessful)
-	{
-		UE_LOG(LogTemp, Log, TEXT(">>> DEDICATED SERVER SESSION CREATED SUCCESSFULLY! <<<"));
+		UE_LOG(LogTemp, Warning, TEXT("SERVER: Session registered successfully!"));
 	}
 	else
 	{
-		UE_LOG(LogTemp, Error, TEXT("Failed to create OSSv1 Session!"));
+		UE_LOG(LogTemp, Error, TEXT("SERVER: Session creation FAILED: %s"), *Result.GetErrorValue().GetLogString());
 	}
 }

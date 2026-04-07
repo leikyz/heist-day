@@ -2,9 +2,8 @@
 
 #include "CoreMinimal.h"
 #include "Subsystems/GameInstanceSubsystem.h"
-#include "Interfaces/OnlineSessionInterface.h"
-#include "OnlineSessionSettings.h"
-#include "Engine/TimerHandle.h" // Needed for FTimerHandle
+#include "Online/OnlineServices.h"
+#include "Online/Sessions.h"
 #include "EOSMatchmakingSubsystem.generated.h"
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnMatchmakingStatusChanged, FString, StatusMessage);
@@ -15,29 +14,22 @@ class FINALGAME_API UEOSMatchmakingSubsystem : public UGameInstanceSubsystem
 	GENERATED_BODY()
 
 public:
-	// Starts the matchmaking process
+	virtual bool ShouldCreateSubsystem(UObject* Outer) const override;
+	virtual void Deinitialize() override;
+
 	UFUNCTION(BlueprintCallable, Category = "EOS|Matchmaking")
-	void FindMatch(int32 PartySize);
+	void StartMatchmaking();
 
 	UPROPERTY(BlueprintAssignable, Category = "EOS|Matchmaking")
-	FOnMatchmakingStatusChanged OnStatusChanged;
+	FOnMatchmakingStatusChanged OnMatchmakingStatusChanged;
 
 private:
-	void SearchForSession(int32 SlotsNeeded);
-	void CreateMatchmakingSession(int32 SlotsNeeded);
-	void JoinFoundSession(const FOnlineSessionSearchResult& SearchResult);
+	void FindAvailableMatch();
+	void OnMatchJoined(const UE::Online::TOnlineResult<UE::Online::FJoinSession>& Result);
 
-	// OSSv1 Callbacks
-	void OnSearchCompleted(bool bWasSuccessful);
-	void OnCreateCompleted(FName SessionName, bool bWasSuccessful);
-	void OnJoinCompleted(FName SessionName, EOnJoinSessionCompleteResult::Type Result);
+	// Polling function called by the timer
+	void CheckMatchStatus();
 
-	// NEW: Polling system to check the Epic Bulletin Board
-	void PollSessionSize();
-	FTimerHandle PollingTimer;
-
-	int32 CurrentPartySize = 1;
-
-	// Holds the search results in memory
-	TSharedPtr<class FOnlineSessionSearch> SessionSearch;
+	FTimerHandle MatchTimerHandle;
+	UE::Online::IOnlineServicesPtr GetServices() const;
 };
