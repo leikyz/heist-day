@@ -2,8 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Subsystems/GameInstanceSubsystem.h"
-#include "Online/OnlineServices.h"
-#include "Online/Sessions.h"
+#include "Interfaces/OnlineSessionInterface.h"
 #include "EOSServerSubsystem.generated.h"
 
 UCLASS()
@@ -15,8 +14,12 @@ public:
 	virtual bool ShouldCreateSubsystem(UObject* Outer) const override;
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 
+	UFUNCTION(BlueprintCallable, Category = "EOS|Server")
 	void CreateServerSession();
 
 private:
-	void OnSessionCreated(const UE::Online::TOnlineResult<UE::Online::FCreateSession>& Result);
+	void OnCreateSessionComplete(FName SessionName, bool bWasSuccessful);
+
+	FOnCreateSessionCompleteDelegate CreateSessionCompleteDelegate;
+	FDelegateHandle CreateSessionCompleteDelegateHandle;
 };
