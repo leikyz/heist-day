@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Http.h"
 #include "Subsystems/GameInstanceSubsystem.h"
 #include "Interfaces/OnlineSessionInterface.h"
 #include "EOSServerSubsystem.generated.h"
@@ -16,7 +17,8 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "EOS|Server")
 	void CreateServerSession();
-
+	void RegisterServerWithBackend();
+	void OnServerRegistrationComplete(FHttpRequestPtr Request, FHttpResponsePtr Response, bool bConnectedSuccessfully);
 private:
 	void OnCreateSessionComplete(FName SessionName, bool bWasSuccessful);
 
