@@ -7,6 +7,23 @@
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnLobbyStateChanged);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnLeaveLobbyFinished, bool, bWasSuccessful);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnPlayerReadyUpdate);
+
+USTRUCT(BlueprintType)
+struct FLobbyPlayerInfo
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "EOS")
+	FString DisplayName;
+
+	UPROPERTY(BlueprintReadOnly, Category = "EOS")
+	bool bIsReady;
+
+	UPROPERTY(BlueprintReadOnly, Category = "EOS")
+	bool bIsLobbyLeader;
+};
+
 UCLASS()
 class FINALGAME_API UEOSLobbySubsystem : public UGameInstanceSubsystem
 {
@@ -33,7 +50,7 @@ public:
 	void NotifyLobbyStateChanged();
 
 	UFUNCTION(BlueprintPure, Category = "EOS|Lobby")
-	TArray<FString> GetLobbyMemberNames();
+	TArray<FLobbyPlayerInfo> GetLobbyPlayersInfo();
 
 	// The Leader calls this to pull the whole lobby into the game
 	UFUNCTION(BlueprintCallable, Category = "EOS|Lobby")
@@ -44,6 +61,24 @@ public:
 
 	UPROPERTY(BlueprintAssignable, Category = "EOS|Lobby")
 	FOnLeaveLobbyFinished OnLeaveLobbyFinished;
+
+	DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnLobbyMatchmakingStateSync, FString, State);
+
+	// Inside the class, add:
+	UFUNCTION(BlueprintCallable, Category = "EOS|Lobby")
+	void SyncMatchmakingState(FString NewState);
+
+	UPROPERTY(BlueprintAssignable, Category = "EOS|Lobby")
+	FOnLobbyMatchmakingStateSync OnLobbyMatchmakingStateSync;
+
+	UFUNCTION(BlueprintPure, Category = "EOS|Lobby")
+	bool IsLobbyLeader() const;
+
+	UFUNCTION(BlueprintCallable, Category = "EOS|Lobby")
+	void SetPlayerReady(bool bIsReady);
+
+	UPROPERTY(BlueprintAssignable, Category = "EOS|Lobby")
+	FOnPlayerReadyUpdate OnPlayerReadyUpdate;
 
 private:
 	void OnCreateLobbyComplete(const UE::Online::TOnlineResult<UE::Online::FCreateLobby>& Result);
@@ -61,6 +96,8 @@ private:
 	void OnLobbyAttributesUpdate(const UE::Online::FLobbyAttributesChanged& Event);
 
 
+	void OnLobbyMemberAttributesUpdate(const UE::Online::FLobbyMemberAttributesChanged& Event);
+	void CheckAllPlayersReady();
 
 	TSharedPtr<const UE::Online::FLobby> CachedLobbyObject;
 
@@ -70,6 +107,7 @@ private:
 	UE::Online::FAccountId PendingAccountId;
 	bool bHasPendingJoin = false;
 
+	UE::Online::FOnlineEventDelegateHandle MemberAttributesChangedHandle;
 	UE::Online::FLobbyId CurrentLobbyId;
 	UE::Online::FOnlineEventDelegateHandle MemberJoinedHandle;
 	UE::Online::FOnlineEventDelegateHandle MemberLeftHandle;
