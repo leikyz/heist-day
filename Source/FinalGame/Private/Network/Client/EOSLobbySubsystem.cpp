@@ -183,7 +183,6 @@ void UEOSLobbySubsystem::OnLobbyJoinRequested(const UE::Online::FUILobbyJoinRequ
 		UE_LOG(LogTemp, Error, TEXT("Failed to join lobby via UI: %s"), *ErrorMessage);
 	}
 }
-
 void UEOSLobbySubsystem::ProcessJoinLobby(UE::Online::FAccountId InLocalAccountId, UE::Online::FLobbyId InLobbyId)
 {
 	UE::Online::IOnlineServicesPtr Services = UE::Online::GetServices();
@@ -206,7 +205,6 @@ void UEOSLobbySubsystem::ProcessJoinLobby(UE::Online::FAccountId InLocalAccountI
 		}
 	}
 }
-
 void UEOSLobbySubsystem::OnJoinLobbyComplete(const UE::Online::TOnlineResult<UE::Online::FJoinLobby>& Result)
 {
 	if (Result.IsOk())
@@ -227,6 +225,7 @@ void UEOSLobbySubsystem::OnJoinLobbyComplete(const UE::Online::TOnlineResult<UE:
 			GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Green, TEXT("Successfully Joined Lobby!"));
 		}
 
+		SetPlayerReady(false);
 		CachedLobbyObject = Result.GetOkValue().Lobby; 
 		CurrentLobbyId = CachedLobbyObject->LobbyId;
 		CurrentPlayerCount = CachedLobbyObject->Members.Num();
@@ -322,13 +321,15 @@ void UEOSLobbySubsystem::OnCreateLobbyComplete(const TOnlineResult<FCreateLobby>
 {
 	if (Result.IsOk())
 	{
-		// LIGNE CORRIGÉE : On sauvegarde l'objet du lobby !
 		CachedLobbyObject = Result.GetOkValue().Lobby;
-
 		CurrentLobbyId = CachedLobbyObject->LobbyId;
 		CurrentPlayerCount = CachedLobbyObject->Members.Num();
 
 		UE_LOG(LogTemp, Warning, TEXT("EOSLobbySubsystem: Lobby créé avec succès ! ID: %s"), *UE::Online::ToLogString(CurrentLobbyId));
+
+		// Initialize the attribute with Epic's backend immediately
+		SetPlayerReady(false);
+
 		NotifyLobbyStateChanged();
 	}
 	else
@@ -403,15 +404,24 @@ void UEOSLobbySubsystem::OnLeaveLobbyComplete(const TOnlineResult<FLeaveLobby>& 
 	CachedLobbyObject.Reset();
 	NotifyLobbyStateChanged();
 
-	OnLeaveLobbyFinished.Broadcast(Result.IsOk());
-
-	UE_LOG(LogTemp, Log, TEXT("Successfully left the lobby."));	
+	UE_LOG(LogTemp, Log, TEXT("Successfully left the lobby."));
 
 	if (bHasPendingJoin)
 	{
+		// 1. Clear the flag
 		bHasPendingJoin = false;
-		UE_LOG(LogTemp, Log, TEXT("Executing pending join request..."));
+
+		// 2. Execute the join
+		UE_LOG(LogTemp, Log, TEXT("Executing pending join request... (Suppressing Blueprint Broadcast)"));
 		ProcessJoinLobby(PendingAccountId, PendingLobbyId);
+
+		// NOTICE: We DO NOT broadcast OnLeaveLobbyFinished here! 
+		// This stops your UI from accidentally creating a new lobby during the transition.
+	}
+	else
+	{
+		// If we are just leaving normally (not joining an invite), tell the UI
+		OnLeaveLobbyFinished.Broadcast(Result.IsOk());
 	}
 }
 
@@ -449,30 +459,30 @@ void UEOSLobbySubsystem::SetPlayerReady(bool bIsReady)
 {
 	if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Yellow, TEXT("C++: Bouton Prêt cliqué !"));
 
-	if (!IsInLobby())
-	{
-		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, TEXT("C++: ERREUR - Le joueur n'est pas dans un lobby !"));
-		return;
-	}
+	if (!IsInLobby()) return;
 
 	UEOSIdentitySubsystem* Identity = GetGameInstance()->GetSubsystem<UEOSIdentitySubsystem>();
-	IOnlineServicesPtr Services = GetServices();
+	UE::Online::IOnlineServicesPtr Services = UE::Online::GetServices();
 
 	UE::Online::FModifyLobbyMemberAttributes::Params Params;
 	Params.LocalAccountId = Identity->GetLocalAccountId();
 	Params.LobbyId = CurrentLobbyId;
 	Params.UpdatedAttributes.Add(FName(TEXT("IsReady")), UE::Online::FSchemaVariant(bIsReady));
 
+	UE_LOG(LogTemp, Warning, TEXT("CLIENT: Attempting to send ModifyLobbyMemberAttributes to EOS (IsReady: %d)"), bIsReady);
+
 	Services->GetLobbiesInterface()->ModifyLobbyMemberAttributes(MoveTemp(Params)).OnComplete(
 		[bIsReady](const UE::Online::TOnlineResult<UE::Online::FModifyLobbyMemberAttributes>& Result)
 		{
 			if (Result.IsOk())
 			{
+				UE_LOG(LogTemp, Warning, TEXT("CLIENT: EOS locally accepted ModifyLobbyMemberAttributes."));
 				if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Green, TEXT("C++: Serveur Epic a validé le statut !"));
 			}
 			else
 			{
 				FString ErrorMsg = Result.GetErrorValue().GetLogString();
+				UE_LOG(LogTemp, Error, TEXT("CLIENT: EOS REJECTED ModifyLobbyMemberAttributes: %s"), *ErrorMsg);
 				if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 10.f, FColor::Red, FString::Printf(TEXT("C++: Refus d'Epic : %s"), *ErrorMsg));
 			}
 		}
@@ -480,7 +490,25 @@ void UEOSLobbySubsystem::SetPlayerReady(bool bIsReady)
 }
 void UEOSLobbySubsystem::OnLobbyMemberAttributesUpdate(const UE::Online::FLobbyMemberAttributesChanged& Event)
 {
-	UE_LOG(LogTemp, Warning, TEXT("EOS Backend : Un membre a mis à jour ses attributs ! Mise à jour de l'UI..."));
+	UE_LOG(LogTemp, Warning, TEXT("=================================================="));
+	UE_LOG(LogTemp, Warning, TEXT("EOS EVENT: OnLobbyMemberAttributesUpdate Fired!"));
+
+	FString MemberIdStr = UE::Online::ToLogString(Event.Member->AccountId);
+	UE_LOG(LogTemp, Warning, TEXT("Updated Member Account ID: %s"), *MemberIdStr);
+
+	// Log added attributes
+	for (const auto& AddedAttr : Event.AddedAttributes)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("   [+] Added Attribute: %s"), *AddedAttr.Key.ToString());
+	}
+
+	// Log changed attributes
+	for (const auto& ChangedAttr : Event.ChangedAttributes)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("   [~] Changed Attribute: %s"), *ChangedAttr.Key.ToString());
+	}
+
+	UE_LOG(LogTemp, Warning, TEXT("=================================================="));
 
 	CachedLobbyObject = Event.Lobby;
 	OnPlayerReadyUpdate.Broadcast();
