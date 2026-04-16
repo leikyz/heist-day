@@ -52,7 +52,6 @@ public:
 	UFUNCTION(BlueprintPure, Category = "EOS|Lobby")
 	TArray<FLobbyPlayerInfo> GetLobbyPlayersInfo();
 
-	// The Leader calls this to pull the whole lobby into the game
 	UFUNCTION(BlueprintCallable, Category = "EOS|Lobby")
 	void StartGame(FString ServerIP);
 
@@ -64,7 +63,6 @@ public:
 
 	DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnLobbyMatchmakingStateSync, FString, State);
 
-	// Inside the class, add:
 	UFUNCTION(BlueprintCallable, Category = "EOS|Lobby")
 	void SyncMatchmakingState(FString NewState);
 
@@ -92,22 +90,15 @@ private:
 	void OnLobbyMemberJoined(const UE::Online::FLobbyMemberJoined& Event);
 	void OnLobbyMemberLeft(const UE::Online::FLobbyMemberLeft& Event);
 
-	// The new clean function to handle when the Leader broadcasts the Server IP
 	void OnLobbyAttributesUpdate(const UE::Online::FLobbyAttributesChanged& Event);
-
-
-	void OnLobbyMemberAttributesUpdate(const UE::Online::FLobbyMemberAttributesChanged& Event);
-	void CheckAllPlayersReady();
 
 	TSharedPtr<const UE::Online::FLobby> CachedLobbyObject;
 
-	// Pending Join Logic
 	void ProcessJoinLobby(UE::Online::FAccountId InLocalAccountId, UE::Online::FLobbyId InLobbyId);
 	UE::Online::FLobbyId PendingLobbyId;
 	UE::Online::FAccountId PendingAccountId;
 	bool bHasPendingJoin = false;
 
-	UE::Online::FOnlineEventDelegateHandle MemberAttributesChangedHandle;
 	UE::Online::FLobbyId CurrentLobbyId;
 	UE::Online::FOnlineEventDelegateHandle MemberJoinedHandle;
 	UE::Online::FOnlineEventDelegateHandle MemberLeftHandle;

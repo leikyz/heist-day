@@ -10,7 +10,8 @@ public class FinalGame : ModuleRules
 
         PublicDependencyModuleNames.AddRange(new string[] {
             "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput",
-            "OnlineServicesInterface", "OnlineServicesEOSGS", "CoreOnline", "OnlineSubsystemUtils", "OnlineSubsystem", "OnlineSubsystemEOS", "HTTP", "WebSockets", "Json", "JsonUtilities"
+            "OnlineServicesInterface", "OnlineServicesEOSGS", "CoreOnline", "OnlineSubsystemUtils", "OnlineSubsystem", "OnlineSubsystemEOS", "HTTP", "WebSockets", "Json",
+             "JsonUtilities", "OnlineSubsystem", "OnlineSubsystemEOS", "EOSSDK"
         });
 
         PrivateDependencyModuleNames.AddRange(new string[] { });

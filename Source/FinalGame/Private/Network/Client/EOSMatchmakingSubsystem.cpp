@@ -5,59 +5,71 @@
 
 bool UEOSMatchmakingSubsystem::ShouldCreateSubsystem(UObject* Outer) const
 {
-    return !IsRunningDedicatedServer();
+	return !IsRunningDedicatedServer();
+}
+
+void UEOSMatchmakingSubsystem::ConnectToPartyTracker(FString LobbyIdString)
+{
+	if (MatchmakingSocket.IsValid() && MatchmakingSocket->IsConnected())
+	{
+		MatchmakingSocket->Close();
+	}
+
+	FModuleManager::Get().LoadModuleChecked<FWebSocketsModule>("WebSockets");
+
+	FString CleanLobbyId = LobbyIdString.Replace(TEXT(" "), TEXT("")).Replace(TEXT(":"), TEXT("_")).Replace(TEXT("["), TEXT("")).Replace(TEXT("]"), TEXT(""));
+
+	FString ServerURL = FString::Printf(TEXT("ws://127.0.0.1:8080/api/party?lobbyId=%s"), *CleanLobbyId);
+	MatchmakingSocket = FWebSocketsModule::Get().CreateWebSocket(ServerURL);
+
+	MatchmakingSocket->OnConnected().AddUObject(this, &UEOSMatchmakingSubsystem::OnSocketConnected);
+	MatchmakingSocket->OnMessage().AddUObject(this, &UEOSMatchmakingSubsystem::OnSocketMessage);
+	MatchmakingSocket->OnConnectionError().AddUObject(this, &UEOSMatchmakingSubsystem::OnSocketError);
+	MatchmakingSocket->OnClosed().AddUObject(this, &UEOSMatchmakingSubsystem::OnSocketClosed);
+
+	UE_LOG(LogTemp, Warning, TEXT("Attempting to connect to Go Tracker at: %s"), *ServerURL);
+
+	MatchmakingSocket->Connect();
+}
+
+void UEOSMatchmakingSubsystem::SendReadyState(bool bIsReady)
+{
+	if (MatchmakingSocket.IsValid() && MatchmakingSocket->IsConnected())
+	{
+		FString JsonString = bIsReady ? TEXT("{\"isReady\": true}") : TEXT("{\"isReady\": false}");
+		MatchmakingSocket->Send(JsonString);
+	}
+}
+
+void UEOSMatchmakingSubsystem::DisconnectTracker()
+{
+	if (MatchmakingSocket.IsValid() && MatchmakingSocket->IsConnected())
+	{
+		MatchmakingSocket->Close();
+		MatchmakingSocket.Reset();
+	}
 }
 
 void UEOSMatchmakingSubsystem::StartMatchmaking()
 {
-	if (MatchmakingSocket.IsValid() && MatchmakingSocket->IsConnected())
-	{
-		return;
-	}
+	if (MatchmakingSocket.IsValid() && MatchmakingSocket->IsConnected()) return;
 
-    UEOSLobbySubsystem* LobbySub = GetGameInstance()->GetSubsystem<UEOSLobbySubsystem>();
-    int32 PartySize = 1;
+	FModuleManager::Get().LoadModuleChecked<FWebSocketsModule>("WebSockets");
+	FString ServerURL = TEXT("ws://127.0.0.1:8080/api/matchmake?partySize=1");
+	MatchmakingSocket = FWebSocketsModule::Get().CreateWebSocket(ServerURL);
 
-    // If in a lobby, only the Leader is allowed to queue
-    if (LobbySub && LobbySub->IsInLobby())
-    {
-        if (!LobbySub->IsLobbyLeader())
-        {
-            UE_LOG(LogTemp, Warning, TEXT("Only the Lobby Leader can start matchmaking."));
-            return;
-        }
-        PartySize = LobbySub->GetLobbyPlayerCount();
+	MatchmakingSocket->OnConnected().AddUObject(this, &UEOSMatchmakingSubsystem::OnSocketConnected);
+	MatchmakingSocket->OnMessage().AddUObject(this, &UEOSMatchmakingSubsystem::OnSocketMessage);
+	MatchmakingSocket->OnConnectionError().AddUObject(this, &UEOSMatchmakingSubsystem::OnSocketError);
+	MatchmakingSocket->OnClosed().AddUObject(this, &UEOSMatchmakingSubsystem::OnSocketClosed);
 
-        // Sync the UI for the non-leader!
-        LobbySub->SyncMatchmakingState(TEXT("Searching for Match..."));
-    }
-
-    FModuleManager::Get().LoadModuleChecked<FWebSocketsModule>("WebSockets");
-
-    // NEW: Append the PartySize to the URL
-    FString ServerURL = FString::Printf(TEXT("ws://127.0.0.1:8080/api/matchmake?partySize=%d"), PartySize);
-    MatchmakingSocket = FWebSocketsModule::Get().CreateWebSocket(ServerURL);
-
-    MatchmakingSocket->OnConnected().AddUObject(this, &UEOSMatchmakingSubsystem::OnSocketConnected);
-    MatchmakingSocket->OnMessage().AddUObject(this, &UEOSMatchmakingSubsystem::OnSocketMessage);
-    MatchmakingSocket->OnConnectionError().AddUObject(this, &UEOSMatchmakingSubsystem::OnSocketError);
-    MatchmakingSocket->OnClosed().AddUObject(this, &UEOSMatchmakingSubsystem::OnSocketClosed);
-
-    OnMatchmakingStatusChanged.Broadcast(TEXT("Connecting to Matchmaker..."));
-    MatchmakingSocket->Connect();
+	OnMatchmakingStatusChanged.Broadcast(TEXT("Connecting to Matchmaker..."));
+	MatchmakingSocket->Connect();
 }
 
 void UEOSMatchmakingSubsystem::OnSocketConnected()
 {
-	FString StateMsg = TEXT("In Queue. Waiting for opponent...");
-
-	OnMatchmakingStatusChanged.Broadcast(StateMsg);
-	UE_LOG(LogTemp, Warning, TEXT("CLIENT: Connected to Go Matchmaker!"));
-
-	if (UEOSLobbySubsystem* LobbySub = GetGameInstance()->GetSubsystem<UEOSLobbySubsystem>())
-	{
-		LobbySub->SyncMatchmakingState(StateMsg);
-	}
+	UE_LOG(LogTemp, Warning, TEXT("CLIENT: Connected to Go Server tracker!"));
 }
 
 void UEOSMatchmakingSubsystem::OnSocketMessage(const FString& Message)
@@ -67,27 +79,49 @@ void UEOSMatchmakingSubsystem::OnSocketMessage(const FString& Message)
 
 	if (FJsonSerializer::Deserialize(Reader, JsonObject) && JsonObject.IsValid())
 	{
-		FString Status;
-		if (JsonObject->TryGetStringField("status", Status) && Status == "found")
+		FString EventType;
+		if (JsonObject->TryGetStringField("event", EventType) && EventType == "ready_update")
 		{
-			FString ServerIP;
-			if (JsonObject->TryGetStringField("ip", ServerIP))
-			{
-				UEOSLobbySubsystem* LobbySub = GetGameInstance()->GetSubsystem<UEOSLobbySubsystem>();
+			int32 ReadyCount = 0;
+			int32 TotalCount = 0;
+			JsonObject->TryGetNumberField("ready", ReadyCount);
+			JsonObject->TryGetNumberField("total", TotalCount);
 
-				if (LobbySub && LobbySub->IsInLobby() && LobbySub->IsLobbyLeader())
+			OnPartyReadyUpdate.Broadcast(ReadyCount, TotalCount);
+		}
+
+		FString Status;
+		if (JsonObject->TryGetStringField("status", Status))
+		{
+			if (Status == "queued")
+			{
+				FString StateMsg = TEXT("In Queue. Waiting for opponent...");
+				OnMatchmakingStatusChanged.Broadcast(StateMsg);
+
+				if (UEOSLobbySubsystem* LobbySub = GetGameInstance()->GetSubsystem<UEOSLobbySubsystem>())
 				{
-					// TEAM TRAVEL: The leader broadcasts the IP to the lobby
-					OnMatchmakingStatusChanged.Broadcast(TEXT("Match Found! Traveling Team..."));
-					LobbySub->StartGame(ServerIP);
+					LobbySub->SyncMatchmakingState(StateMsg);
 				}
-				else
+			}
+			else if (Status == "found")
+			{
+				FString ServerIP;
+				if (JsonObject->TryGetStringField("ip", ServerIP))
 				{
-					// SOLO TRAVEL: If no lobby, just travel instantly
-					OnMatchmakingStatusChanged.Broadcast(TEXT("Match Found! Traveling..."));
-					if (APlayerController* PC = GetWorld()->GetFirstPlayerController())
+					UEOSLobbySubsystem* LobbySub = GetGameInstance()->GetSubsystem<UEOSLobbySubsystem>();
+
+					if (LobbySub && LobbySub->IsInLobby() && LobbySub->IsLobbyLeader())
 					{
-						PC->ClientTravel(ServerIP, TRAVEL_Absolute);
+						OnMatchmakingStatusChanged.Broadcast(TEXT("Match Found! Traveling Team..."));
+						LobbySub->StartGame(ServerIP);
+					}
+					else if (!LobbySub || !LobbySub->IsInLobby())
+					{
+						OnMatchmakingStatusChanged.Broadcast(TEXT("Match Found! Traveling..."));
+						if (APlayerController* PC = GetWorld()->GetFirstPlayerController())
+						{
+							PC->ClientTravel(ServerIP, TRAVEL_Absolute);
+						}
 					}
 				}
 			}
@@ -97,11 +131,11 @@ void UEOSMatchmakingSubsystem::OnSocketMessage(const FString& Message)
 
 void UEOSMatchmakingSubsystem::OnSocketError(const FString& Error)
 {
-    OnMatchmakingStatusChanged.Broadcast(TEXT("Matchmaking Error."));
-    UE_LOG(LogTemp, Error, TEXT("CLIENT WS ERROR: %s"), *Error);
+	OnMatchmakingStatusChanged.Broadcast(TEXT("Connection Error."));
+	UE_LOG(LogTemp, Error, TEXT("CLIENT WS ERROR: %s"), *Error);
 }
 
 void UEOSMatchmakingSubsystem::OnSocketClosed(int32 StatusCode, const FString& Reason, bool bWasClean)
 {
-    UE_LOG(LogTemp, Warning, TEXT("CLIENT WS CLOSED: %s"), *Reason);
+	UE_LOG(LogTemp, Warning, TEXT("CLIENT WS CLOSED: %s"), *Reason);
 }

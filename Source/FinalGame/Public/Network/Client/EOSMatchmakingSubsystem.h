@@ -7,6 +7,8 @@
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnMatchmakingStatusChanged, FString, StatusMessage);
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnPartyReadyUpdate, int32, ReadyCount, int32, TotalPlayers);
+
 UCLASS()
 class FINALGAME_API UEOSMatchmakingSubsystem : public UGameInstanceSubsystem
 {
@@ -15,14 +17,26 @@ class FINALGAME_API UEOSMatchmakingSubsystem : public UGameInstanceSubsystem
 public:
 	virtual bool ShouldCreateSubsystem(UObject* Outer) const override;
 
-	// You will trigger your custom Go backend logic from here later
 	UFUNCTION(BlueprintCallable, Category = "EOS|Matchmaking")
 	void StartMatchmaking();
+
+	UFUNCTION(BlueprintCallable, Category = "EOS|Matchmaking")
+	void ConnectToPartyTracker(FString LobbyIdString);
+
+
+	UFUNCTION(BlueprintCallable, Category = "EOS|Matchmaking")
+	void SendReadyState(bool bIsReady);
+
+	UFUNCTION(BlueprintCallable, Category = "EOS|Matchmaking")
+	void DisconnectTracker();
 
 	UPROPERTY(BlueprintAssignable, Category = "EOS|Matchmaking")
 	FOnMatchmakingStatusChanged OnMatchmakingStatusChanged;
 
-private :
+	UPROPERTY(BlueprintAssignable, Category = "EOS|Matchmaking")
+	FOnPartyReadyUpdate OnPartyReadyUpdate;
+
+private:
 	TSharedPtr<IWebSocket> MatchmakingSocket;
 
 	void OnSocketConnected();
