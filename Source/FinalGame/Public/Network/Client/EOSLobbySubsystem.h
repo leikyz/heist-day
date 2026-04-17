@@ -103,6 +103,7 @@ private:
 	UE::Online::FOnlineEventDelegateHandle MemberJoinedHandle;
 	UE::Online::FOnlineEventDelegateHandle MemberLeftHandle;
 	UE::Online::FOnlineEventDelegateHandle AttributesChangedHandle;
+	UE::Online::FOnlineEventDelegateHandle MemberAttributesChangedHandle;
 
 	int32 CurrentPlayerCount = 0;
 };

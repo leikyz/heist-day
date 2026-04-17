@@ -37,10 +37,21 @@ public:
 	FOnPartyReadyUpdate OnPartyReadyUpdate;
 
 private:
+	TSharedPtr<IWebSocket> PartySocket;
 	TSharedPtr<IWebSocket> MatchmakingSocket;
 
-	void OnSocketConnected();
-	void OnSocketMessage(const FString& Message);
-	void OnSocketError(const FString& Error);
-	void OnSocketClosed(int32 StatusCode, const FString& Reason, bool bWasClean);
+	// Callbacks for Party Socket
+	void OnPartySocketConnected();
+	void OnPartySocketMessage(const FString& Message);
+	void OnPartySocketError(const FString& Error);
+	void OnPartySocketClosed(int32 StatusCode, const FString& Reason, bool bWasClean);
+
+	// Callbacks for Direct Matchmaking Socket
+	void OnMatchmakingSocketConnected();
+	void OnMatchmakingSocketMessage(const FString& Message);
+	void OnMatchmakingSocketError(const FString& Error);
+	void OnMatchmakingSocketClosed(int32 StatusCode, const FString& Reason, bool bWasClean);
+
+	// Helper to process JSON logic (reusable)
+	void ProcessServerMessage(const FString& Message);
 };

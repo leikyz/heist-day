@@ -3,6 +3,9 @@
 #include <eos_presence_types.h>
 #include "Online/UserInfo.h"
 #include "Network/Client/EOSMatchmakingSubsystem.h"
+#include <OnlineSubsystem.h>
+#include <OnlineSessionSettings.h>
+#include "Interfaces/OnlineSessionInterface.h"
 
 using namespace UE::Online;
 
@@ -36,6 +39,16 @@ void UEOSLobbySubsystem::Initialize(FSubsystemCollectionBase& Collection)
 			AttributesChangedHandle = Lobbies->OnLobbyAttributesChanged().Add([this](const UE::Online::FLobbyAttributesChanged& Event) {
 				OnLobbyAttributesUpdate(Event);
 				});
+
+			// Listen for when ANY member in the lobby changes an attribute (like IsReady)
+			MemberAttributesChangedHandle = Lobbies->OnLobbyMemberAttributesChanged().Add([this](const UE::Online::FLobbyMemberAttributesChanged& Event) {
+
+				UE_LOG(LogTemp, Warning, TEXT("EOS: Received notification that a Lobby Member updated their attributes!"));
+
+				CachedLobbyObject = Event.Lobby;
+
+				NotifyLobbyStateChanged();
+				});
 		}
 	}
 }
@@ -58,8 +71,19 @@ TArray<FLobbyPlayerInfo> UEOSLobbySubsystem::GetLobbyPlayersInfo()
 			for (const auto& Kvp : CachedLobbyObject->Members)
 			{
 				FLobbyPlayerInfo Info;
-				Info.bIsReady = false;
 				Info.bIsLobbyLeader = (Kvp.Key == OwnerUserId);
+
+				FName ReadyKey(TEXT("IsReady"));
+				if (Kvp.Value->Attributes.Contains(ReadyKey))
+				{
+					// Safely extract the boolean value if the attribute exists
+					Info.bIsReady = Kvp.Value->Attributes[ReadyKey].GetBoolean();
+				}
+				else
+				{
+					// Default to false if the player hasn't pressed the button yet
+					Info.bIsReady = false;
+				}
 
 				FGetUserInfo::Params UserParams;
 				UserParams.LocalAccountId = LocalUserId;
@@ -76,6 +100,7 @@ TArray<FLobbyPlayerInfo> UEOSLobbySubsystem::GetLobbyPlayersInfo()
 					Info.DisplayName = FString::Printf(TEXT("Joueur: %s"), *PlayerID);
 				}
 
+				// Always put the Lobby Leader at the top of the list
 				if (Info.bIsLobbyLeader)
 				{
 					PlayersInfo.Insert(Info, 0);
@@ -178,9 +203,24 @@ void UEOSLobbySubsystem::OnJoinLobbyComplete(const UE::Online::TOnlineResult<UE:
 
 		NotifyLobbyStateChanged();
 
-		if (UEOSMatchmakingSubsystem* MatchSub = GetGameInstance()->GetSubsystem<UEOSMatchmakingSubsystem>())
+		FString SharedLobbyId = TEXT("");
+		FName PartyIdKey(TEXT("BackendPartyId"));
+
+		if (CachedLobbyObject->Attributes.Contains(PartyIdKey))
 		{
-			MatchSub->ConnectToPartyTracker(UE::Online::ToLogString(CachedLobbyObject->OwnerAccountId));
+			SharedLobbyId = CachedLobbyObject->Attributes[PartyIdKey].GetString();
+		}
+
+		if (!SharedLobbyId.IsEmpty())
+		{
+			if (UEOSMatchmakingSubsystem* MatchSub = GetGameInstance()->GetSubsystem<UEOSMatchmakingSubsystem>())
+			{
+				MatchSub->ConnectToPartyTracker(SharedLobbyId);
+			}
+		}
+		else
+		{
+			UE_LOG(LogTemp, Error, TEXT("Failed to connect to Go Server: BackendPartyId missing from Lobby."));
 		}
 	}
 	else
@@ -217,13 +257,16 @@ void UEOSLobbySubsystem::CreateLobby()
 	FCreateLobby::Params Params;
 	Params.LocalAccountId = IdentitySubsystem->GetLocalAccountId();
 	Params.LocalName = TEXT("MatchmakingLobby");
-	Params.SchemaId = FName(TEXT("GameLobby"));
+	Params.SchemaId = FName(TEXT("gamelobby"));
 	Params.MaxMembers = 2;
 	Params.bPresenceEnabled = true;
 	Params.JoinPolicy = UE::Online::ELobbyJoinPolicy::PublicAdvertised;
 
 	FSchemaVariant BucketValue(TEXT("MainMatchmaking"));
 	Params.Attributes.Add(FName(TEXT("BucketId")), BucketValue);
+
+	FString UniquePartyId = FGuid::NewGuid().ToString();
+	Params.Attributes.Add(FName(TEXT("BackendPartyId")), UE::Online::FSchemaVariant(UniquePartyId));
 
 	Services->GetLobbiesInterface()->CreateLobby(MoveTemp(Params)).OnComplete(
 		[this](const UE::Online::TOnlineResult<UE::Online::FCreateLobby>& Result)
@@ -265,9 +308,24 @@ void UEOSLobbySubsystem::OnCreateLobbyComplete(const TOnlineResult<FCreateLobby>
 
 		NotifyLobbyStateChanged();
 
-		if (UEOSMatchmakingSubsystem* MatchSub = GetGameInstance()->GetSubsystem<UEOSMatchmakingSubsystem>())
+		FString SharedLobbyId = TEXT("");
+		FName PartyIdKey(TEXT("BackendPartyId"));
+
+		if (CachedLobbyObject->Attributes.Contains(PartyIdKey))
 		{
-			MatchSub->ConnectToPartyTracker(UE::Online::ToLogString(CachedLobbyObject->OwnerAccountId));
+			SharedLobbyId = CachedLobbyObject->Attributes[PartyIdKey].GetString();
+		}
+
+		if (!SharedLobbyId.IsEmpty())
+		{
+			if (UEOSMatchmakingSubsystem* MatchSub = GetGameInstance()->GetSubsystem<UEOSMatchmakingSubsystem>())
+			{
+				MatchSub->ConnectToPartyTracker(SharedLobbyId);
+			}
+		}
+		else
+		{
+			UE_LOG(LogTemp, Error, TEXT("BackendPartyId was missing from created lobby attributes!"));
 		}
 	}
 }
@@ -359,10 +417,31 @@ void UEOSLobbySubsystem::SetPlayerReady(bool bIsReady)
 {
 	if (!IsInLobby()) return;
 
-	if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Yellow, TEXT("C++: Bouton Prêt cliqué (Bypass via WebSockets) !"));
+	UEOSIdentitySubsystem* Identity = GetGameInstance()->GetSubsystem<UEOSIdentitySubsystem>();
+	IOnlineServicesPtr Services = UE::Online::GetServices();
 
-	if (UEOSMatchmakingSubsystem* MatchSub = GetGameInstance()->GetSubsystem<UEOSMatchmakingSubsystem>())
+	if (Services && Identity)
 	{
-		MatchSub->SendReadyState(bIsReady);
+		UE::Online::FModifyLobbyMemberAttributes::Params Params;
+		Params.LobbyId = CurrentLobbyId;
+		Params.LocalAccountId = Identity->GetLocalAccountId();
+
+		// Set the attribute defined in DefaultEngine.ini
+		Params.UpdatedAttributes.Add(FName(TEXT("IsReady")), UE::Online::FSchemaVariant(bIsReady));
+
+		Services->GetLobbiesInterface()->ModifyLobbyMemberAttributes(MoveTemp(Params)).OnComplete(
+			[this](const UE::Online::TOnlineResult<UE::Online::FModifyLobbyMemberAttributes>& Result)
+			{
+				if (Result.IsOk())
+				{
+					UE_LOG(LogTemp, Warning, TEXT("EOS: Successfully updated LOCAL IsReady attribute!"));
+					// Force the local UI to refresh immediately
+					NotifyLobbyStateChanged();
+				}
+				else
+				{
+					UE_LOG(LogTemp, Error, TEXT("EOS: Failed to update IsReady: %s"), *Result.GetErrorValue().GetLogString());
+				}
+			});
 	}
 }
