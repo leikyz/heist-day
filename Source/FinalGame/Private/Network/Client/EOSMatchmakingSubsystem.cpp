@@ -78,9 +78,6 @@ void UEOSMatchmakingSubsystem::StartMatchmaking()
     MatchmakingSocket->Connect();
 }
 
-// ---------------------------------------------------------
-// REUSABLE JSON PARSER FOR BOTH SOCKETS
-// ---------------------------------------------------------
 void UEOSMatchmakingSubsystem::ProcessServerMessage(const FString& Message)
 {
     UE_LOG(LogTemp, Warning, TEXT("RAW MESSAGE FROM SERVER: %s"), *Message);
@@ -140,9 +137,6 @@ void UEOSMatchmakingSubsystem::ProcessServerMessage(const FString& Message)
     }
 }
 
-// ---------------------------------------------------------
-// PARTY SOCKET CALLBACKS
-// ---------------------------------------------------------
 void UEOSMatchmakingSubsystem::OnPartySocketConnected()
 {
     UE_LOG(LogTemp, Warning, TEXT("CLIENT: Connected to Go Party Tracker!"));
@@ -163,9 +157,6 @@ void UEOSMatchmakingSubsystem::OnPartySocketClosed(int32 StatusCode, const FStri
     UE_LOG(LogTemp, Warning, TEXT("PARTY WS CLOSED: %s"), *Reason);
 }
 
-// ---------------------------------------------------------
-// MATCHMAKER SOCKET CALLBACKS (For Solo Direct Queuing)
-// ---------------------------------------------------------
 void UEOSMatchmakingSubsystem::OnMatchmakingSocketConnected()
 {
     UE_LOG(LogTemp, Warning, TEXT("CLIENT: Connected to Solo Matchmaker!"));

@@ -1,5 +1,4 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
-
 using UnrealBuildTool;
 
 public class FinalGame : ModuleRules
@@ -9,19 +8,28 @@ public class FinalGame : ModuleRules
         PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 
         PublicDependencyModuleNames.AddRange(new string[] {
-            "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput",
-            "OnlineServicesInterface", "OnlineServicesEOSGS", "CoreOnline", "OnlineSubsystemUtils", "OnlineSubsystem", "OnlineSubsystemEOS", "HTTP", "WebSockets", "Json",
-             "JsonUtilities", "OnlineSubsystem", "OnlineSubsystemEOS", "EOSSDK"
+            // Core Engine Modules
+            "Core",
+            "CoreUObject",
+            "Engine",
+            "InputCore",
+            "EnhancedInput",
+            
+            // Stable OSSv1 Modules (EOS and Base)
+            "OnlineSubsystem",
+            "OnlineSubsystemUtils",
+            "OnlineSubsystemEOS", 
+            
+            // Networking and Data Modules
+            "HTTP",
+            "WebSockets",
+            "Json",
+            "JsonUtilities"
         });
 
         PrivateDependencyModuleNames.AddRange(new string[] { });
 
         // Uncomment if you are using Slate UI
         // PrivateDependencyModuleNames.AddRange(new string[] { "Slate", "SlateCore" });
-
-        // Uncomment if you are using online features
-        // PrivateDependencyModuleNames.Add("OnlineSubsystem");
-
-        // To include OnlineSubsystemSteam, add it to the plugins section in your uproject file with the Enabled attribute set to true
     }
 }

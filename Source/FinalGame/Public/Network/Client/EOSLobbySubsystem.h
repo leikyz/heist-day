@@ -2,12 +2,13 @@
 
 #include "CoreMinimal.h"
 #include "Subsystems/GameInstanceSubsystem.h"
-#include "Network/EOSNetworkSubsystem.h"
+#include "Interfaces/OnlineSessionInterface.h"
 #include "EOSLobbySubsystem.generated.h"
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnLobbyStateChanged);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnLeaveLobbyFinished, bool, bWasSuccessful);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnPlayerReadyUpdate);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnLobbyMatchmakingStateSync, FString, State);
 
 USTRUCT(BlueprintType)
 struct FLobbyPlayerInfo
@@ -30,12 +31,14 @@ class FINALGAME_API UEOSLobbySubsystem : public UGameInstanceSubsystem
 	GENERATED_BODY()
 
 public:
-	virtual bool ShouldCreateSubsystem(UObject* Outer) const override;
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	virtual void Deinitialize() override;
 
 	UFUNCTION(BlueprintCallable, Category = "EOS|Lobby")
 	void CreateLobby();
+
+	UFUNCTION(BlueprintCallable, Category = "EOS|Lobby")
+	void FindAndJoinLobby();
 
 	UFUNCTION(BlueprintCallable, Category = "EOS|Lobby")
 	void LeaveLobby();
@@ -55,19 +58,8 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "EOS|Lobby")
 	void StartGame(FString ServerIP);
 
-	UPROPERTY(BlueprintAssignable, Category = "EOS|Lobby")
-	FOnLobbyStateChanged OnLobbyStateChanged;
-
-	UPROPERTY(BlueprintAssignable, Category = "EOS|Lobby")
-	FOnLeaveLobbyFinished OnLeaveLobbyFinished;
-
-	DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnLobbyMatchmakingStateSync, FString, State);
-
 	UFUNCTION(BlueprintCallable, Category = "EOS|Lobby")
 	void SyncMatchmakingState(FString NewState);
-
-	UPROPERTY(BlueprintAssignable, Category = "EOS|Lobby")
-	FOnLobbyMatchmakingStateSync OnLobbyMatchmakingStateSync;
 
 	UFUNCTION(BlueprintPure, Category = "EOS|Lobby")
 	bool IsLobbyLeader() const;
@@ -76,34 +68,26 @@ public:
 	void SetPlayerReady(bool bIsReady);
 
 	UPROPERTY(BlueprintAssignable, Category = "EOS|Lobby")
+	FOnLobbyStateChanged OnLobbyStateChanged;
+
+	UPROPERTY(BlueprintAssignable, Category = "EOS|Lobby")
+	FOnLeaveLobbyFinished OnLeaveLobbyFinished;
+
+	UPROPERTY(BlueprintAssignable, Category = "EOS|Lobby")
+	FOnLobbyMatchmakingStateSync OnLobbyMatchmakingStateSync;
+
+	UPROPERTY(BlueprintAssignable, Category = "EOS|Lobby")
 	FOnPlayerReadyUpdate OnPlayerReadyUpdate;
 
 private:
-	void OnCreateLobbyComplete(const UE::Online::TOnlineResult<UE::Online::FCreateLobby>& Result);
-	void OnLeaveLobbyComplete(const UE::Online::TOnlineResult<UE::Online::FLeaveLobby>& Result);
+	IOnlineSessionPtr GetSessionInterface() const;
 
-	UE::Online::FOnlineEventDelegateHandle UIJoinRequestedHandle;
+	void OnCreateSessionComplete(FName SessionName, bool bWasSuccessful);
+	void OnDestroySessionComplete(FName SessionName, bool bWasSuccessful);
+	void OnFindSessionsComplete(bool bWasSuccessful);
+	void OnJoinSessionComplete(FName SessionName, EOnJoinSessionCompleteResult::Type Result);
+	void OnSessionSettingsUpdated(FName SessionName, const FOnlineSessionSettings& UpdatedSettings);
 
-	void OnLobbyJoinRequested(const UE::Online::FUILobbyJoinRequested& Event);
-	void OnJoinLobbyComplete(const UE::Online::TOnlineResult<UE::Online::FJoinLobby>& Result);
-
-	void OnLobbyMemberJoined(const UE::Online::FLobbyMemberJoined& Event);
-	void OnLobbyMemberLeft(const UE::Online::FLobbyMemberLeft& Event);
-
-	void OnLobbyAttributesUpdate(const UE::Online::FLobbyAttributesChanged& Event);
-
-	TSharedPtr<const UE::Online::FLobby> CachedLobbyObject;
-
-	void ProcessJoinLobby(UE::Online::FAccountId InLocalAccountId, UE::Online::FLobbyId InLobbyId);
-	UE::Online::FLobbyId PendingLobbyId;
-	UE::Online::FAccountId PendingAccountId;
-	bool bHasPendingJoin = false;
-
-	UE::Online::FLobbyId CurrentLobbyId;
-	UE::Online::FOnlineEventDelegateHandle MemberJoinedHandle;
-	UE::Online::FOnlineEventDelegateHandle MemberLeftHandle;
-	UE::Online::FOnlineEventDelegateHandle AttributesChangedHandle;
-	UE::Online::FOnlineEventDelegateHandle MemberAttributesChangedHandle;
-
-	int32 CurrentPlayerCount = 0;
+	TSharedPtr<class FOnlineSessionSearch> SessionSearch;
+	bool bIsReadyLocal = false; // Local tracking for the stub
 };

@@ -1,54 +1,205 @@
 #include "Network/Client/EOSLobbySubsystem.h"
-#include "Network/Client/EOSIdentitySubsystem.h"
-#include <eos_presence_types.h>
-#include "Online/UserInfo.h"
 #include "Network/Client/EOSMatchmakingSubsystem.h"
-#include <OnlineSubsystem.h>
-#include <OnlineSessionSettings.h>
-#include "Interfaces/OnlineSessionInterface.h"
-
-using namespace UE::Online;
-
-bool UEOSLobbySubsystem::ShouldCreateSubsystem(UObject* Outer) const
-{
-	return !IsRunningDedicatedServer();
-}
+#include "OnlineSubsystem.h"
+#include "OnlineSessionSettings.h"
+#include "GameFramework/GameStateBase.h"
+#include "GameFramework/PlayerState.h"
+#include "GameFramework/PlayerController.h"
+#include "Online/OnlineSessionNames.h"
+#include "Interfaces/OnlineIdentityInterface.h"
+#include "Engine/World.h"
 
 void UEOSLobbySubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
 
-	IOnlineServicesPtr Services = GetServices();
-	if (Services)
+	if (IOnlineSessionPtr SessionInterface = GetSessionInterface())
 	{
-		ILobbiesPtr Lobbies = Services->GetLobbiesInterface();
-		if (Lobbies)
+		SessionInterface->OnSessionSettingsUpdatedDelegates.AddUObject(this, &UEOSLobbySubsystem::OnSessionSettingsUpdated);
+	}
+}
+
+void UEOSLobbySubsystem::Deinitialize()
+{
+	Super::Deinitialize();
+}
+
+IOnlineSessionPtr UEOSLobbySubsystem::GetSessionInterface() const
+{
+	IOnlineSubsystem* Subsystem = IOnlineSubsystem::Get();
+	if (Subsystem)
+	{
+		return Subsystem->GetSessionInterface();
+	}
+	return nullptr;
+}
+
+void UEOSLobbySubsystem::CreateLobby()
+{
+	IOnlineSessionPtr SessionInterface = GetSessionInterface();
+	if (!SessionInterface.IsValid()) return;
+
+	FOnlineSessionSettings Settings;
+	Settings.bIsLANMatch = false;
+	Settings.NumPublicConnections = 4; // Max players in your lobby
+	Settings.bShouldAdvertise = true;
+	Settings.bUsesPresence = true;
+	Settings.bUseLobbiesIfAvailable = true; // Use EOS backend Lobbies
+
+
+	SessionInterface->OnCreateSessionCompleteDelegates.AddUObject(this, &UEOSLobbySubsystem::OnCreateSessionComplete);
+	SessionInterface->CreateSession(0, NAME_GameSession, Settings);
+}
+
+void UEOSLobbySubsystem::OnCreateSessionComplete(FName SessionName, bool bWasSuccessful)
+{
+	IOnlineSessionPtr SessionInterface = GetSessionInterface();
+	if (SessionInterface) SessionInterface->ClearOnCreateSessionCompleteDelegates(this);
+
+	if (bWasSuccessful)
+	{
+		if (UWorld* World = GetWorld())
 		{
-			MemberJoinedHandle = Lobbies->OnLobbyMemberJoined().Add([this](const FLobbyMemberJoined& Event) {
-				OnLobbyMemberJoined(Event);
-				});
+			World->ServerTravel("/Game/Level/Lobby_Level?listen");
+		}
+	}
+}
+void UEOSLobbySubsystem::FindAndJoinLobby()
+{
+	IOnlineSessionPtr SessionInterface = GetSessionInterface();
+	if (!SessionInterface.IsValid()) return;
 
-			MemberLeftHandle = Lobbies->OnLobbyMemberLeft().Add([this](const FLobbyMemberLeft& Event) {
-				OnLobbyMemberLeft(Event);
-				});
+	SessionSearch = MakeShareable(new FOnlineSessionSearch());
+	SessionSearch->bIsLanQuery = false;
+	SessionSearch->MaxSearchResults = 20;
+	SessionSearch->QuerySettings.Set(SEARCH_LOBBIES, true, EOnlineComparisonOp::Equals);
 
-			UIJoinRequestedHandle = Lobbies->OnUILobbyJoinRequested().Add([this](const FUILobbyJoinRequested& Event) {
-				OnLobbyJoinRequested(Event);
-				});
+	SessionInterface->OnFindSessionsCompleteDelegates.AddUObject(this, &UEOSLobbySubsystem::OnFindSessionsComplete);
+	SessionInterface->FindSessions(0, SessionSearch.ToSharedRef());
+}
 
-			AttributesChangedHandle = Lobbies->OnLobbyAttributesChanged().Add([this](const UE::Online::FLobbyAttributesChanged& Event) {
-				OnLobbyAttributesUpdate(Event);
-				});
+void UEOSLobbySubsystem::OnFindSessionsComplete(bool bWasSuccessful)
+{
+	IOnlineSessionPtr SessionInterface = GetSessionInterface();
+	if (SessionInterface) SessionInterface->ClearOnFindSessionsCompleteDelegates(this);
 
-			// Listen for when ANY member in the lobby changes an attribute (like IsReady)
-			MemberAttributesChangedHandle = Lobbies->OnLobbyMemberAttributesChanged().Add([this](const UE::Online::FLobbyMemberAttributesChanged& Event) {
+	if (bWasSuccessful && SessionSearch->SearchResults.Num() > 0)
+	{
+		SessionInterface->OnJoinSessionCompleteDelegates.AddUObject(this, &UEOSLobbySubsystem::OnJoinSessionComplete);
+		SessionInterface->JoinSession(0, NAME_GameSession, SessionSearch->SearchResults[0]);
+	}
+}
 
-				UE_LOG(LogTemp, Warning, TEXT("EOS: Received notification that a Lobby Member updated their attributes!"));
+void UEOSLobbySubsystem::OnJoinSessionComplete(FName SessionName, EOnJoinSessionCompleteResult::Type Result)
+{
+	IOnlineSessionPtr SessionInterface = GetSessionInterface();
+	if (SessionInterface) SessionInterface->ClearOnJoinSessionCompleteDelegates(this);
 
-				CachedLobbyObject = Event.Lobby;
+	if (Result == EOnJoinSessionCompleteResult::Success)
+	{
+		FString ConnectInfo;
+		if (SessionInterface->GetResolvedConnectString(NAME_GameSession, ConnectInfo))
+		{
+			if (APlayerController* PC = GetGameInstance()->GetFirstLocalPlayerController())
+			{
+				PC->ClientTravel(ConnectInfo, TRAVEL_Absolute);
+			}
+		}
+	}
+}
 
-				NotifyLobbyStateChanged();
-				});
+void UEOSLobbySubsystem::LeaveLobby()
+{
+	IOnlineSessionPtr SessionInterface = GetSessionInterface();
+	if (!SessionInterface.IsValid()) return;
+
+	SessionInterface->OnDestroySessionCompleteDelegates.AddUObject(this, &UEOSLobbySubsystem::OnDestroySessionComplete);
+	SessionInterface->DestroySession(NAME_GameSession);
+}
+void UEOSLobbySubsystem::NotifyLobbyStateChanged()
+{
+	OnLobbyStateChanged.Broadcast();
+}
+void UEOSLobbySubsystem::OnDestroySessionComplete(FName SessionName, bool bWasSuccessful)
+{
+	IOnlineSessionPtr SessionInterface = GetSessionInterface();
+	if (SessionInterface) SessionInterface->ClearOnDestroySessionCompleteDelegates(this);
+
+	NotifyLobbyStateChanged();
+	OnLeaveLobbyFinished.Broadcast(bWasSuccessful);
+
+	if (APlayerController* PC = GetGameInstance()->GetFirstLocalPlayerController())
+	{
+		PC->ClientTravel("/Game/Level/Lobby_Level", TRAVEL_Absolute);
+	}
+}
+
+bool UEOSLobbySubsystem::IsInLobby() const
+{
+	IOnlineSessionPtr SessionInterface = GetSessionInterface();
+	if (SessionInterface)
+	{
+		return SessionInterface->GetNamedSession(NAME_GameSession) != nullptr;
+	}
+	return false;
+}
+
+int32 UEOSLobbySubsystem::GetLobbyPlayerCount() const
+{
+	if (UWorld* World = GetWorld())
+	{
+		if (AGameStateBase* GameState = World->GetGameState())
+		{
+			return GameState->PlayerArray.Num();
+		}
+	}
+	return 0;
+}
+
+bool UEOSLobbySubsystem::IsLobbyLeader() const
+{
+	if (UWorld* World = GetWorld())
+	{
+		if (APlayerController* PC = World->GetFirstPlayerController())
+		{
+			return PC->HasAuthority();
+		}
+	}
+	return false;
+}
+
+void UEOSLobbySubsystem::SyncMatchmakingState(FString NewState)
+{
+	if (!IsLobbyLeader()) return;
+
+	IOnlineSessionPtr SessionInterface = GetSessionInterface();
+	if (SessionInterface)
+	{
+		FOnlineSessionSettings* Settings = SessionInterface->GetSessionSettings(NAME_GameSession);
+		if (Settings)
+		{
+			Settings->Set(FName("QueueState"), NewState, EOnlineDataAdvertisementType::ViaOnlineService);
+			SessionInterface->UpdateSession(NAME_GameSession, *Settings, true);
+		}
+	}
+}
+
+void UEOSLobbySubsystem::OnSessionSettingsUpdated(FName SessionName, const FOnlineSessionSettings& UpdatedSettings)
+{
+	FString NewState;
+	if (UpdatedSettings.Get(FName("QueueState"), NewState))
+	{
+		OnLobbyMatchmakingStateSync.Broadcast(NewState);
+	}
+}
+
+void UEOSLobbySubsystem::StartGame(FString ServerIP)
+{
+	if (IsLobbyLeader())
+	{
+		if (UWorld* World = GetWorld())
+		{
+			World->ServerTravel(ServerIP);
 		}
 	}
 }
@@ -56,392 +207,42 @@ void UEOSLobbySubsystem::Initialize(FSubsystemCollectionBase& Collection)
 TArray<FLobbyPlayerInfo> UEOSLobbySubsystem::GetLobbyPlayersInfo()
 {
 	TArray<FLobbyPlayerInfo> PlayersInfo;
-
-	if (CachedLobbyObject.IsValid())
+	if (UWorld* World = GetWorld())
 	{
-		IOnlineServicesPtr Services = GetServices();
-		IUserInfoPtr UserInfoInterface = Services->GetUserInfoInterface();
-		UEOSIdentitySubsystem* IdentitySubsystem = GetGameInstance()->GetSubsystem<UEOSIdentitySubsystem>();
-
-		if (UserInfoInterface && IdentitySubsystem)
+		if (AGameStateBase* GameState = World->GetGameState())
 		{
-			UE::Online::FAccountId LocalUserId = IdentitySubsystem->GetLocalAccountId();
-			UE::Online::FAccountId OwnerUserId = CachedLobbyObject->OwnerAccountId;
+			IOnlineSubsystem* Subsystem = IOnlineSubsystem::Get();
+			IOnlineIdentityPtr IdentityInterface = Subsystem ? Subsystem->GetIdentityInterface() : nullptr;
 
-			for (const auto& Kvp : CachedLobbyObject->Members)
+			for (APlayerState* PS : GameState->PlayerArray)
 			{
 				FLobbyPlayerInfo Info;
-				Info.bIsLobbyLeader = (Kvp.Key == OwnerUserId);
 
-				FName ReadyKey(TEXT("IsReady"));
-				if (Kvp.Value->Attributes.Contains(ReadyKey))
-				{
-					// Safely extract the boolean value if the attribute exists
-					Info.bIsReady = Kvp.Value->Attributes[ReadyKey].GetBoolean();
-				}
-				else
-				{
-					// Default to false if the player hasn't pressed the button yet
-					Info.bIsReady = false;
-				}
+				Info.DisplayName = PS->GetPlayerName();
 
-				FGetUserInfo::Params UserParams;
-				UserParams.LocalAccountId = LocalUserId;
-				UserParams.AccountId = Kvp.Key;
+				if (IdentityInterface.IsValid() && PS->GetUniqueId().IsValid())
+				{
+					FString RealEpicName = IdentityInterface->GetPlayerNickname(*PS->GetUniqueId().GetUniqueNetId());
 
-				TOnlineResult<FGetUserInfo> UserResult = UserInfoInterface->GetUserInfo(MoveTemp(UserParams));
-				if (UserResult.IsOk())
-				{
-					Info.DisplayName = UserResult.GetOkValue().UserInfo->DisplayName;
-				}
-				else
-				{
-					FString PlayerID = UE::Online::ToLogString(Kvp.Key);
-					Info.DisplayName = FString::Printf(TEXT("Joueur: %s"), *PlayerID);
+					if (!RealEpicName.IsEmpty())
+					{
+						Info.DisplayName = RealEpicName;
+					}
 				}
 
-				// Always put the Lobby Leader at the top of the list
-				if (Info.bIsLobbyLeader)
-				{
-					PlayersInfo.Insert(Info, 0);
-				}
-				else
-				{
-					PlayersInfo.Add(Info);
-				}
+				Info.bIsLobbyLeader = (PS == GameState->PlayerArray[0]);
+
+				Info.bIsReady = bIsReadyLocal;
+
+				PlayersInfo.Add(Info);
 			}
 		}
 	}
-
 	return PlayersInfo;
-}
-
-void UEOSLobbySubsystem::OnLobbyAttributesUpdate(const UE::Online::FLobbyAttributesChanged& Event)
-{
-	FName QueueStateKey(TEXT("QueueState"));
-	if (Event.AddedAttributes.Contains(QueueStateKey))
-	{
-		OnLobbyMatchmakingStateSync.Broadcast(Event.AddedAttributes[QueueStateKey].GetString());
-	}
-	else if (Event.ChangedAttributes.Contains(QueueStateKey))
-	{
-		OnLobbyMatchmakingStateSync.Broadcast(Event.ChangedAttributes[QueueStateKey].Value.GetString());
-	}
-
-	FName ServerIPKey(TEXT("ServerIP"));
-	FString TargetIP = TEXT("");
-
-	if (Event.AddedAttributes.Contains(ServerIPKey))
-	{
-		TargetIP = Event.AddedAttributes[ServerIPKey].GetString();
-	}
-	else if (Event.ChangedAttributes.Contains(ServerIPKey))
-	{
-		TargetIP = Event.ChangedAttributes[ServerIPKey].Value.GetString();
-	}
-
-	if (!TargetIP.IsEmpty())
-	{
-		FString PartyIDString = UE::Online::ToLogString(CurrentLobbyId);
-		FString TravelURL = FString::Printf(TEXT("%s?PartyID=%s"), *TargetIP, *PartyIDString);
-
-		UE_LOG(LogTemp, Warning, TEXT("Lobby Broadcast reçu ! Téléportation vers : %s"), *TravelURL);
-
-		if (APlayerController* PC = GetWorld()->GetFirstPlayerController())
-		{
-			PC->ClientTravel(TravelURL, TRAVEL_Absolute);
-		}
-	}
-}
-
-void UEOSLobbySubsystem::OnLobbyJoinRequested(const UE::Online::FUILobbyJoinRequested& Event)
-{
-	if (Event.Result.IsOk())
-	{
-		TSharedRef<const UE::Online::FLobby> TargetLobby = Event.Result.GetOkValue();
-
-		if (IsInLobby())
-		{
-			PendingLobbyId = TargetLobby->LobbyId;
-			PendingAccountId = Event.LocalAccountId;
-			bHasPendingJoin = true;
-			LeaveLobby();
-		}
-		else
-		{
-			ProcessJoinLobby(Event.LocalAccountId, TargetLobby->LobbyId);
-		}
-	}
-}
-
-void UEOSLobbySubsystem::ProcessJoinLobby(UE::Online::FAccountId InLocalAccountId, UE::Online::FLobbyId InLobbyId)
-{
-	UE::Online::IOnlineServicesPtr Services = UE::Online::GetServices();
-	if (Services && Services->GetLobbiesInterface())
-	{
-		UE::Online::FJoinLobby::Params JoinParams;
-		JoinParams.LocalAccountId = InLocalAccountId;
-		JoinParams.LobbyId = InLobbyId;
-		JoinParams.bPresenceEnabled = true;
-
-		Services->GetLobbiesInterface()->JoinLobby(MoveTemp(JoinParams)).OnComplete(
-			[this](const UE::Online::TOnlineResult<UE::Online::FJoinLobby>& JoinResult)
-			{
-				OnJoinLobbyComplete(JoinResult);
-			}
-		);
-	}
-}
-
-void UEOSLobbySubsystem::OnJoinLobbyComplete(const UE::Online::TOnlineResult<UE::Online::FJoinLobby>& Result)
-{
-	if (Result.IsOk())
-	{
-		CachedLobbyObject = Result.GetOkValue().Lobby;
-		CurrentLobbyId = CachedLobbyObject->LobbyId;
-		CurrentPlayerCount = CachedLobbyObject->Members.Num();
-
-		NotifyLobbyStateChanged();
-
-		FString SharedLobbyId = TEXT("");
-		FName PartyIdKey(TEXT("BackendPartyId"));
-
-		if (CachedLobbyObject->Attributes.Contains(PartyIdKey))
-		{
-			SharedLobbyId = CachedLobbyObject->Attributes[PartyIdKey].GetString();
-		}
-
-		if (!SharedLobbyId.IsEmpty())
-		{
-			if (UEOSMatchmakingSubsystem* MatchSub = GetGameInstance()->GetSubsystem<UEOSMatchmakingSubsystem>())
-			{
-				MatchSub->ConnectToPartyTracker(SharedLobbyId);
-			}
-		}
-		else
-		{
-			UE_LOG(LogTemp, Error, TEXT("Failed to connect to Go Server: BackendPartyId missing from Lobby."));
-		}
-	}
-	else
-	{
-		UE_LOG(LogTemp, Error, TEXT("Failed to join lobby: %s"), *Result.GetErrorValue().GetLogString());
-	}
-}
-
-void UEOSLobbySubsystem::OnLobbyMemberJoined(const UE::Online::FLobbyMemberJoined& Event)
-{
-	CurrentPlayerCount++;
-	CachedLobbyObject = Event.Lobby;
-	CurrentPlayerCount = CachedLobbyObject->Members.Num();
-	NotifyLobbyStateChanged();
-}
-
-void UEOSLobbySubsystem::Deinitialize()
-{
-	MemberJoinedHandle.Unbind();
-	MemberLeftHandle.Unbind();
-	UIJoinRequestedHandle.Unbind();
-	AttributesChangedHandle.Unbind();
-
-	Super::Deinitialize();
-}
-
-void UEOSLobbySubsystem::CreateLobby()
-{
-	UEOSIdentitySubsystem* IdentitySubsystem = GetGameInstance()->GetSubsystem<UEOSIdentitySubsystem>();
-	IOnlineServicesPtr Services = GetServices();
-
-	if (!IdentitySubsystem || !IdentitySubsystem->IsLoggedIn() || !Services) return;
-
-	FCreateLobby::Params Params;
-	Params.LocalAccountId = IdentitySubsystem->GetLocalAccountId();
-	Params.LocalName = TEXT("MatchmakingLobby");
-	Params.SchemaId = FName(TEXT("gamelobby"));
-	Params.MaxMembers = 2;
-	Params.bPresenceEnabled = true;
-	Params.JoinPolicy = UE::Online::ELobbyJoinPolicy::PublicAdvertised;
-
-	FSchemaVariant BucketValue(TEXT("MainMatchmaking"));
-	Params.Attributes.Add(FName(TEXT("BucketId")), BucketValue);
-
-	FString UniquePartyId = FGuid::NewGuid().ToString();
-	Params.Attributes.Add(FName(TEXT("BackendPartyId")), UE::Online::FSchemaVariant(UniquePartyId));
-
-	Services->GetLobbiesInterface()->CreateLobby(MoveTemp(Params)).OnComplete(
-		[this](const UE::Online::TOnlineResult<UE::Online::FCreateLobby>& Result)
-		{
-			OnCreateLobbyComplete(Result);
-		}
-	);
-}
-
-bool UEOSLobbySubsystem::IsLobbyLeader() const
-{
-	if (!CachedLobbyObject.IsValid()) return false;
-	UEOSIdentitySubsystem* Identity = GetGameInstance()->GetSubsystem<UEOSIdentitySubsystem>();
-	return CachedLobbyObject->OwnerAccountId == Identity->GetLocalAccountId();
-}
-
-void UEOSLobbySubsystem::SyncMatchmakingState(FString NewState)
-{
-	if (!IsInLobby() || !IsLobbyLeader()) return;
-
-	UEOSIdentitySubsystem* Identity = GetGameInstance()->GetSubsystem<UEOSIdentitySubsystem>();
-	IOnlineServicesPtr Services = UE::Online::GetServices();
-
-	UE::Online::FModifyLobbyAttributes::Params Params;
-	Params.LocalAccountId = Identity->GetLocalAccountId();
-	Params.LobbyId = CurrentLobbyId;
-	Params.UpdatedAttributes.Add(FName(TEXT("QueueState")), UE::Online::FSchemaVariant(NewState));
-
-	Services->GetLobbiesInterface()->ModifyLobbyAttributes(MoveTemp(Params));
-}
-
-void UEOSLobbySubsystem::OnCreateLobbyComplete(const TOnlineResult<FCreateLobby>& Result)
-{
-	if (Result.IsOk())
-	{
-		CachedLobbyObject = Result.GetOkValue().Lobby;
-		CurrentLobbyId = CachedLobbyObject->LobbyId;
-		CurrentPlayerCount = CachedLobbyObject->Members.Num();
-
-		NotifyLobbyStateChanged();
-
-		FString SharedLobbyId = TEXT("");
-		FName PartyIdKey(TEXT("BackendPartyId"));
-
-		if (CachedLobbyObject->Attributes.Contains(PartyIdKey))
-		{
-			SharedLobbyId = CachedLobbyObject->Attributes[PartyIdKey].GetString();
-		}
-
-		if (!SharedLobbyId.IsEmpty())
-		{
-			if (UEOSMatchmakingSubsystem* MatchSub = GetGameInstance()->GetSubsystem<UEOSMatchmakingSubsystem>())
-			{
-				MatchSub->ConnectToPartyTracker(SharedLobbyId);
-			}
-		}
-		else
-		{
-			UE_LOG(LogTemp, Error, TEXT("BackendPartyId was missing from created lobby attributes!"));
-		}
-	}
-}
-void UEOSLobbySubsystem::LeaveLobby()
-{
-	if (!IsInLobby()) return;
-
-	UEOSIdentitySubsystem* IdentitySubsystem = GetGameInstance()->GetSubsystem<UEOSIdentitySubsystem>();
-	IOnlineServicesPtr Services = GetServices();
-
-	if (UEOSMatchmakingSubsystem* MatchSub = GetGameInstance()->GetSubsystem<UEOSMatchmakingSubsystem>())
-	{
-		MatchSub->DisconnectTracker();
-	}
-
-	if (Services && IdentitySubsystem)
-	{
-		FLeaveLobby::Params Params;
-		Params.LocalAccountId = IdentitySubsystem->GetLocalAccountId();
-		Params.LobbyId = CurrentLobbyId;
-
-		Services->GetLobbiesInterface()->LeaveLobby(MoveTemp(Params)).OnComplete(
-			[this](const UE::Online::TOnlineResult<UE::Online::FLeaveLobby>& Result)
-			{
-				OnLeaveLobbyComplete(Result);
-			}
-		);
-	}
-}
-
-void UEOSLobbySubsystem::StartGame(FString ServerIP)
-{
-	UEOSIdentitySubsystem* IdentitySubsystem = GetGameInstance()->GetSubsystem<UEOSIdentitySubsystem>();
-	UE::Online::IOnlineServicesPtr Services = UE::Online::GetServices();
-
-	if (Services && IdentitySubsystem && IsInLobby())
-	{
-		UE::Online::FModifyLobbyAttributes::Params Params;
-		Params.LocalAccountId = IdentitySubsystem->GetLocalAccountId();
-		Params.LobbyId = CurrentLobbyId;
-		Params.UpdatedAttributes.Add(FName(TEXT("ServerIP")), UE::Online::FSchemaVariant(ServerIP));
-
-		Services->GetLobbiesInterface()->ModifyLobbyAttributes(MoveTemp(Params));
-	}
-}
-
-void UEOSLobbySubsystem::OnLeaveLobbyComplete(const TOnlineResult<FLeaveLobby>& Result)
-{
-	CurrentLobbyId = UE::Online::FLobbyId();
-	CurrentPlayerCount = 0;
-	CachedLobbyObject.Reset();
-	NotifyLobbyStateChanged();
-	OnLeaveLobbyFinished.Broadcast(Result.IsOk());
-
-	if (bHasPendingJoin)
-	{
-		bHasPendingJoin = false;
-		ProcessJoinLobby(PendingAccountId, PendingLobbyId);
-	}
-}
-
-bool UEOSLobbySubsystem::IsInLobby() const
-{
-	return CurrentLobbyId.IsValid();
-}
-
-int32 UEOSLobbySubsystem::GetLobbyPlayerCount() const
-{
-	return CurrentPlayerCount;
-}
-
-void UEOSLobbySubsystem::OnLobbyMemberLeft(const FLobbyMemberLeft& Event)
-{
-	if (Event.Lobby->LobbyId == CurrentLobbyId)
-	{
-		CurrentPlayerCount--;
-		CachedLobbyObject = Event.Lobby;
-		CurrentPlayerCount = CachedLobbyObject->Members.Num();
-		NotifyLobbyStateChanged();
-	}
-}
-
-void UEOSLobbySubsystem::NotifyLobbyStateChanged()
-{
-	OnLobbyStateChanged.Broadcast();
 }
 
 void UEOSLobbySubsystem::SetPlayerReady(bool bIsReady)
 {
-	if (!IsInLobby()) return;
-
-	UEOSIdentitySubsystem* Identity = GetGameInstance()->GetSubsystem<UEOSIdentitySubsystem>();
-	IOnlineServicesPtr Services = UE::Online::GetServices();
-
-	if (Services && Identity)
-	{
-		UE::Online::FModifyLobbyMemberAttributes::Params Params;
-		Params.LobbyId = CurrentLobbyId;
-		Params.LocalAccountId = Identity->GetLocalAccountId();
-
-		// Set the attribute defined in DefaultEngine.ini
-		Params.UpdatedAttributes.Add(FName(TEXT("IsReady")), UE::Online::FSchemaVariant(bIsReady));
-
-		Services->GetLobbiesInterface()->ModifyLobbyMemberAttributes(MoveTemp(Params)).OnComplete(
-			[this](const UE::Online::TOnlineResult<UE::Online::FModifyLobbyMemberAttributes>& Result)
-			{
-				if (Result.IsOk())
-				{
-					UE_LOG(LogTemp, Warning, TEXT("EOS: Successfully updated LOCAL IsReady attribute!"));
-					// Force the local UI to refresh immediately
-					NotifyLobbyStateChanged();
-				}
-				else
-				{
-					UE_LOG(LogTemp, Error, TEXT("EOS: Failed to update IsReady: %s"), *Result.GetErrorValue().GetLogString());
-				}
-			});
-	}
+	bIsReadyLocal = bIsReady;
+	OnPlayerReadyUpdate.Broadcast();
 }
