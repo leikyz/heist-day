@@ -3,9 +3,10 @@
 #include "CoreMinimal.h"
 #include "Subsystems/GameInstanceSubsystem.h"
 #include "Interfaces/OnlineIdentityInterface.h"
+#include "OnlineSubsystem.h"
 #include "EOSIdentitySubsystem.generated.h"
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnLoginStateChanged, bool, bIsSuccessful);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnEOSLoginComplete, bool, bWasSuccessful, const FString&, DisplayName);
 
 UCLASS()
 class FINALGAME_API UEOSIdentitySubsystem : public UGameInstanceSubsystem
@@ -13,24 +14,32 @@ class FINALGAME_API UEOSIdentitySubsystem : public UGameInstanceSubsystem
 	GENERATED_BODY()
 
 public:
-	virtual bool ShouldCreateSubsystem(UObject* Outer) const override;
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
+	virtual void Deinitialize() override;
 
 	UFUNCTION(BlueprintCallable, Category = "EOS|Identity")
-	void LoginWithDevAuth();
+	void LoginWithDevAuthTool();
 
 	UFUNCTION(BlueprintPure, Category = "EOS|Identity")
-	FString GetPlayerName() const;
+	bool IsLoggedIn() const;
 
 	UFUNCTION(BlueprintPure, Category = "EOS|Identity")
-	bool IsLoggedIn() const { return bIsLoggedIn; }
+	FString GetLocalDisplayName() const { return CachedDisplayName; }
+
+	UFUNCTION(BlueprintPure, Category = "EOS|Identity")
+	FUniqueNetIdRepl GetLocalUserId() const;
 
 	UPROPERTY(BlueprintAssignable, Category = "EOS|Identity")
-	FOnLoginStateChanged OnLoginStateChanged;
+	FOnEOSLoginComplete OnLoginComplete;
 
 private:
-	void OnLoginComplete(int32 LocalUserNum, bool bWasSuccessful, const FUniqueNetId& UserId, const FString& Error);
+	void HandleLoginComplete(int32 LocalUserNum, bool bWasSuccessful, const FUniqueNetId& UserId, const FString& Error);
 
-	bool bIsLoggedIn = false;
-	TSharedPtr<const FUniqueNetId> LocalAccountId;
+	IOnlineSubsystem* GetOSS() const;
+	IOnlineIdentityPtr GetIdentityInterface() const;
+
+	FString CachedDisplayName;
+
+	// Delegate handle for cleanup
+	FDelegateHandle LoginDelegateHandle;
 };
