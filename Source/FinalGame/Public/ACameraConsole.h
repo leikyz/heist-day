@@ -27,11 +27,12 @@ public:
 	UFUNCTION(CallInEditor, Category = "Camera management")
 	void ClearCamera();
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Console param")
+	int IndexCamera = 0;
 	
 	APawn* PlayerPawn;
 	APlayerController* PlayerController;
-
-	int IndexCamera = 0;
+	
 	bool ConsoleInteract = false;
 
 protected:
