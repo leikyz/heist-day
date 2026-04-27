@@ -1,65 +1,74 @@
 #include "Network/Client/EOSIdentitySubsystem.h"
-
-using namespace UE::Online;
-
-bool UEOSIdentitySubsystem::ShouldCreateSubsystem(UObject* Outer) const
-{
-	return !IsRunningDedicatedServer();
-}
+#include "Network/Client/EOSLobbySubsystem.h"
+#include "OnlineSubsystemUtils.h"
+#include "Engine/GameInstance.h"
 
 void UEOSIdentitySubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
+	Collection.InitializeDependency<UEOSLobbySubsystem>();
 }
-void UEOSIdentitySubsystem::LoginWithDevAuth()
+
+void UEOSIdentitySubsystem::Deinitialize()
 {
-	IOnlineServicesPtr Services = GetServices();
-	if (!Services) return;
+	if (IOnlineIdentityPtr Identity = GetIdentityInterface())
+		Identity->ClearOnLoginCompleteDelegate_Handle(0, LoginDelegateHandle);
 
-	IAuthPtr Auth = Services->GetAuthInterface();
-	if (!Auth) return;
-
-	FString DevAuthToken = TEXT("DevUser");
-	FParse::Value(FCommandLine::Get(), TEXT("AUTH_LOGIN="), DevAuthToken);
-
-	FAuthLogin::Params LoginParams;
-
-	// Mandatory OSSv2 binding
-	LoginParams.PlatformUserId = FPlatformMisc::GetPlatformUserForUserIndex(0);
-
-	LoginParams.CredentialsType = LoginCredentialsType::Developer;
-	LoginParams.CredentialsId = TEXT("localhost:9000");
-	LoginParams.CredentialsToken.Set<FString>(DevAuthToken);
-
-	UE_LOG(LogTemp, Warning, TEXT("CLIENT (Identity OSSv2): Logging in with [%s]..."), *DevAuthToken);
-
-	Auth->Login(MoveTemp(LoginParams)).OnComplete(
-		[this](const UE::Online::TOnlineResult<UE::Online::FAuthLogin>& Result)
-		{
-			OnLoginComplete(Result);
-		}
-	);
+	Super::Deinitialize();
 }
-void UEOSIdentitySubsystem::OnLoginComplete(const TOnlineResult<FAuthLogin>& Result)
-{
-	bIsLoggedIn = Result.IsOk();
 
-	if (bIsLoggedIn)
+void UEOSIdentitySubsystem::LoginWithDevAuthTool()
+{
+	IOnlineIdentityPtr Identity = GetIdentityInterface();
+	if (!Identity.IsValid()) return;
+
+	FString Credential;
+	if (!FParse::Value(FCommandLine::Get(), TEXT("-AUTH_LOGIN="), Credential))
+		Credential = TEXT("DevUser");
+
+	LoginDelegateHandle = Identity->AddOnLoginCompleteDelegate_Handle(0,
+		FOnLoginCompleteDelegate::CreateUObject(this, &UEOSIdentitySubsystem::HandleLoginComplete));
+
+	FOnlineAccountCredentials Creds;
+	Creds.Type = TEXT("developer");
+	Creds.Id = TEXT("localhost:9000");
+	Creds.Token = Credential;
+	Identity->Login(0, Creds);
+}
+
+void UEOSIdentitySubsystem::HandleLoginComplete(int32 LocalUserNum, bool bWasSuccessful, const FUniqueNetId& UserId, const FString& Error)
+{
+	if (IOnlineIdentityPtr Identity = GetIdentityInterface())
+		Identity->ClearOnLoginCompleteDelegate_Handle(LocalUserNum, LoginDelegateHandle);
+
+	if (bWasSuccessful)
 	{
-		LocalAccountId = Result.GetOkValue().AccountInfo->AccountId;
-		UE_LOG(LogTemp, Warning, TEXT("CLIENT (Identity OSSv2): Login SUCCESS. AccountId valid."));
+		if (IOnlineIdentityPtr Identity = GetIdentityInterface())
+		{
+			TSharedPtr<FUserOnlineAccount> Account = Identity->GetUserAccount(UserId);
+			CachedDisplayName = Account.IsValid() ? Account->GetDisplayName() : Identity->GetPlayerNickname(LocalUserNum);
+		}
+		OnLoginComplete.Broadcast(true, CachedDisplayName);
 	}
 	else
 	{
-		UE_LOG(LogTemp, Error, TEXT("CLIENT (Identity OSSv2): Login FAILED. Error: %s"), *Result.GetErrorValue().GetLogString());
+		OnLoginComplete.Broadcast(false, TEXT(""));
 	}
-
-	OnLoginStateChanged.Broadcast(bIsLoggedIn);
 }
 
-FString UEOSIdentitySubsystem::GetPlayerName() const
+bool UEOSIdentitySubsystem::IsLoggedIn() const
 {
-	if (!bIsLoggedIn || !LocalAccountId.IsValid()) return TEXT("Non loggé");
-
-	return UE::Online::ToLogString(LocalAccountId);
+	IOnlineIdentityPtr Identity = GetIdentityInterface();
+	return Identity.IsValid() && Identity->GetLoginStatus(0) == ELoginStatus::LoggedIn;
 }
+
+FUniqueNetIdRepl UEOSIdentitySubsystem::GetLocalUserId() const
+{
+	IOnlineIdentityPtr Identity = GetIdentityInterface();
+	if (!Identity.IsValid()) return FUniqueNetIdRepl();
+	TSharedPtr<const FUniqueNetId> UserId = Identity->GetUniquePlayerId(0);
+	return UserId.IsValid() ? FUniqueNetIdRepl(*UserId) : FUniqueNetIdRepl();
+}
+
+IOnlineSubsystem* UEOSIdentitySubsystem::GetOSS()              const { return IOnlineSubsystem::Get(); }
+IOnlineIdentityPtr UEOSIdentitySubsystem::GetIdentityInterface() const { IOnlineSubsystem* OSS = GetOSS(); return OSS ? OSS->GetIdentityInterface() : nullptr; }
