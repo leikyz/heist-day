@@ -24,7 +24,8 @@ public class FinalGame : ModuleRules
             "HTTP",
             "WebSockets",
             "Json",
-            "JsonUtilities"
+            "JsonUtilities",
+            "CoreOnline"
         });
 
         PrivateDependencyModuleNames.AddRange(new string[] { });

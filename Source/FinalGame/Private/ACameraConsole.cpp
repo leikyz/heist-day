@@ -13,6 +13,10 @@ AACameraConsole::AACameraConsole()
 // Called when the game starts or when spawned
 void AACameraConsole::BeginPlay()
 {
+
+	if (GetNetMode() == NM_DedicatedServer)
+		return;
+
 	PlayerPawn = GetWorld()->GetFirstPlayerController()->GetPawn();
 	PlayerController = GetWorld()->GetFirstPlayerController();
 
