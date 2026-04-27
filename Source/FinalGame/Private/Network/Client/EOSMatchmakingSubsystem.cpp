@@ -1,107 +1,72 @@
 #include "Network/Client/EOSMatchmakingSubsystem.h"
 #include "Network/Client/EOSLobbySubsystem.h"
-#include "WebSocketsModule.h"
-#include "Json.h"
-
-bool UEOSMatchmakingSubsystem::ShouldCreateSubsystem(UObject* Outer) const
-{
-    return !IsRunningDedicatedServer();
-}
+#include "HttpModule.h"
+#include "Interfaces/IHttpResponse.h"
+#include "Dom/JsonObject.h"
+#include "Serialization/JsonSerializer.h"
+#include "Serialization/JsonWriter.h"
 
 void UEOSMatchmakingSubsystem::StartMatchmaking()
 {
-	if (MatchmakingSocket.IsValid() && MatchmakingSocket->IsConnected())
+	UEOSLobbySubsystem* LobbySub = GetGameInstance()->GetSubsystem<UEOSLobbySubsystem>();
+	if (!LobbySub) return;
+
+	const int32 MemberCount = LobbySub->GetCurrentMembers().Num();
+
+	TSharedPtr<FJsonObject> JsonObj = MakeShareable(new FJsonObject());
+	JsonObj->SetStringField(TEXT("lobby_id"), TEXT("CurrentLobby"));
+	JsonObj->SetNumberField(TEXT("player_count"), MemberCount);
+
+	FString JsonString;
+	TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&JsonString);
+	FJsonSerializer::Serialize(JsonObj.ToSharedRef(), Writer);
+
+	TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Request = FHttpModule::Get().CreateRequest();
+	Request->SetURL(TEXT("http://localhost:8080/matchmake"));
+	Request->SetVerb(TEXT("POST"));
+	Request->SetHeader(TEXT("Content-Type"), TEXT("application/json"));
+	Request->SetContentAsString(JsonString);
+	Request->OnProcessRequestComplete().BindUObject(this, &UEOSMatchmakingSubsystem::OnMatchmakingResponse);
+
+	LobbySub->SyncMatchmakingState(FString::Printf(TEXT("Searching... (%d/2)"), MemberCount));
+
+	UE_LOG(LogTemp, Warning, TEXT("[Matchmaking] Sending request to Go backend with %d players..."), MemberCount);
+	Request->ProcessRequest();
+}
+
+void UEOSMatchmakingSubsystem::OnMatchmakingResponse(FHttpRequestPtr Request, FHttpResponsePtr Response, bool bWasSuccessful)
+{
+	if (!bWasSuccessful || !Response.IsValid())
 	{
+		UE_LOG(LogTemp, Error, TEXT("[Matchmaking] HTTP request failed. Is the Go server running?"));
 		return;
 	}
 
-    UEOSLobbySubsystem* LobbySub = GetGameInstance()->GetSubsystem<UEOSLobbySubsystem>();
-    int32 PartySize = 1;
+	if (Response->GetResponseCode() != 200)
+	{
+		UE_LOG(LogTemp, Error, TEXT("[Matchmaking] Server returned %d"), Response->GetResponseCode());
+		return;
+	}
 
-    // If in a lobby, only the Leader is allowed to queue
-    if (LobbySub && LobbySub->IsInLobby())
-    {
-        if (!LobbySub->IsLobbyLeader())
-        {
-            UE_LOG(LogTemp, Warning, TEXT("Only the Lobby Leader can start matchmaking."));
-            return;
-        }
-        PartySize = LobbySub->GetLobbyPlayerCount();
+	TSharedPtr<FJsonObject> JsonResponse;
+	TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Response->GetContentAsString());
+	if (!FJsonSerializer::Deserialize(Reader, JsonResponse) || !JsonResponse.IsValid())
+	{
+		UE_LOG(LogTemp, Error, TEXT("[Matchmaking] Failed to parse JSON: %s"), *Response->GetContentAsString());
+		return;
+	}
 
-        // Sync the UI for the non-leader!
-        LobbySub->SyncMatchmakingState(TEXT("Searching for Match..."));
-    }
+	const FString ServerIP = JsonResponse->GetStringField(TEXT("ip"));
+	const int32   TeamID = JsonResponse->GetIntegerField(TEXT("team"));
 
-    FModuleManager::Get().LoadModuleChecked<FWebSocketsModule>("WebSockets");
-
-    // NEW: Append the PartySize to the URL
-    FString ServerURL = FString::Printf(TEXT("ws://127.0.0.1:8080/api/matchmake?partySize=%d"), PartySize);
-    MatchmakingSocket = FWebSocketsModule::Get().CreateWebSocket(ServerURL);
-
-    MatchmakingSocket->OnConnected().AddUObject(this, &UEOSMatchmakingSubsystem::OnSocketConnected);
-    MatchmakingSocket->OnMessage().AddUObject(this, &UEOSMatchmakingSubsystem::OnSocketMessage);
-    MatchmakingSocket->OnConnectionError().AddUObject(this, &UEOSMatchmakingSubsystem::OnSocketError);
-    MatchmakingSocket->OnClosed().AddUObject(this, &UEOSMatchmakingSubsystem::OnSocketClosed);
-
-    OnMatchmakingStatusChanged.Broadcast(TEXT("Connecting to Matchmaker..."));
-    MatchmakingSocket->Connect();
-}
-
-void UEOSMatchmakingSubsystem::OnSocketConnected()
-{
-	FString StateMsg = TEXT("In Queue. Waiting for opponent...");
-
-	OnMatchmakingStatusChanged.Broadcast(StateMsg);
-	UE_LOG(LogTemp, Warning, TEXT("CLIENT: Connected to Go Matchmaker!"));
+	UE_LOG(LogTemp, Warning, TEXT("[Matchmaking] Match found — Server: %s | Team: %d"), *ServerIP, TeamID);
 
 	if (UEOSLobbySubsystem* LobbySub = GetGameInstance()->GetSubsystem<UEOSLobbySubsystem>())
 	{
-		LobbySub->SyncMatchmakingState(StateMsg);
-	}
-}
-
-void UEOSMatchmakingSubsystem::OnSocketMessage(const FString& Message)
-{
-	TSharedPtr<FJsonObject> JsonObject;
-	TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Message);
-
-	if (FJsonSerializer::Deserialize(Reader, JsonObject) && JsonObject.IsValid())
-	{
-		FString Status;
-		if (JsonObject->TryGetStringField("status", Status) && Status == "found")
+		if (LobbySub->IsLobbyLeader())
 		{
-			FString ServerIP;
-			if (JsonObject->TryGetStringField("ip", ServerIP))
-			{
-				UEOSLobbySubsystem* LobbySub = GetGameInstance()->GetSubsystem<UEOSLobbySubsystem>();
-
-				if (LobbySub && LobbySub->IsInLobby() && LobbySub->IsLobbyLeader())
-				{
-					// TEAM TRAVEL: The leader broadcasts the IP to the lobby
-					OnMatchmakingStatusChanged.Broadcast(TEXT("Match Found! Traveling Team..."));
-					LobbySub->StartGame(ServerIP);
-				}
-				else
-				{
-					// SOLO TRAVEL: If no lobby, just travel instantly
-					OnMatchmakingStatusChanged.Broadcast(TEXT("Match Found! Traveling..."));
-					if (APlayerController* PC = GetWorld()->GetFirstPlayerController())
-					{
-						PC->ClientTravel(ServerIP, TRAVEL_Absolute);
-					}
-				}
-			}
+			LobbySub->SyncMatchmakingState(TEXT("Match Found!"));
+			LobbySub->BroadcastServerIP(ServerIP);
 		}
 	}
-}
-
-void UEOSMatchmakingSubsystem::OnSocketError(const FString& Error)
-{
-    OnMatchmakingStatusChanged.Broadcast(TEXT("Matchmaking Error."));
-    UE_LOG(LogTemp, Error, TEXT("CLIENT WS ERROR: %s"), *Error);
-}
-
-void UEOSMatchmakingSubsystem::OnSocketClosed(int32 StatusCode, const FString& Reason, bool bWasClean)
-{
-    UE_LOG(LogTemp, Warning, TEXT("CLIENT WS CLOSED: %s"), *Reason);
 }

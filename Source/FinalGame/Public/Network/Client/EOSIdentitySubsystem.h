@@ -1,10 +1,12 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Network/EOSNetworkSubsystem.h"
+#include "Subsystems/GameInstanceSubsystem.h"
+#include "OnlineSubsystem.h"
+#include "Interfaces/OnlineIdentityInterface.h"
 #include "EOSIdentitySubsystem.generated.h"
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnLoginStateChangedDynamic, bool, bLoggedIn);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnEOSLoginComplete, bool, bWasSuccessful, FString, DisplayName);
 
 UCLASS()
 class FINALGAME_API UEOSIdentitySubsystem : public UGameInstanceSubsystem
@@ -12,27 +14,30 @@ class FINALGAME_API UEOSIdentitySubsystem : public UGameInstanceSubsystem
 	GENERATED_BODY()
 
 public:
-	virtual bool ShouldCreateSubsystem(UObject* Outer) const override;
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
+	virtual void Deinitialize() override;
 
-	UFUNCTION(BlueprintCallable)
-	void LoginWithDevAuth();
+	UFUNCTION(BlueprintCallable, Category = "EOS|Identity")
+	void LoginWithDevAuthTool();
 
-	UFUNCTION(BlueprintPure)
-	FString GetPlayerName() const;
+	UFUNCTION(BlueprintPure, Category = "EOS|Identity")
+	bool IsLoggedIn() const;
 
-	UFUNCTION(BlueprintCallable)
-	bool IsLoggedIn() const { return bIsLoggedIn; }
+	UFUNCTION(BlueprintPure, Category = "EOS|Identity")
+	FUniqueNetIdRepl GetLocalUserId() const;
 
-	UE::Online::FAccountId GetLocalAccountId() const { return LocalAccountId; }
+	UFUNCTION(BlueprintPure, Category = "EOS|Identity")
+	FString GetLocalDisplayName() const { return CachedDisplayName; }
 
-	UPROPERTY(BlueprintAssignable)
-	FOnLoginStateChangedDynamic OnLoginStateChanged;
+	UPROPERTY(BlueprintAssignable, Category = "EOS|Identity")
+	FOnEOSLoginComplete OnLoginComplete;
 
 private:
-	void OnLoginComplete(const UE::Online::TOnlineResult<UE::Online::FAuthLogin>& Result);
+	void HandleLoginComplete(int32 LocalUserNum, bool bWasSuccessful, const FUniqueNetId& UserId, const FString& Error);
 
-	bool bIsLoggedIn = false;
+	IOnlineSubsystem* GetOSS()              const;
+	IOnlineIdentityPtr  GetIdentityInterface() const;
 
-	UE::Online::FAccountId LocalAccountId;
+	FDelegateHandle LoginDelegateHandle;
+	FString         CachedDisplayName;
 };

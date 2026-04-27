@@ -2,27 +2,34 @@
 
 #include "CoreMinimal.h"
 #include "Subsystems/GameInstanceSubsystem.h"
-#include "Network/EOSNetworkSubsystem.h"
+#include "Interfaces/OnlineSessionInterface.h"
+#include "OnlineSessionSettings.h"
+#include "OnlineSubsystem.h"
+#include "FindSessionsCallbackProxy.h"
+#include "Interfaces/OnlinePresenceInterface.h"
 #include "EOSLobbySubsystem.generated.h"
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnLobbyStateChanged);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnLeaveLobbyFinished, bool, bWasSuccessful);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnPlayerReadyUpdate);
-
 USTRUCT(BlueprintType)
-struct FLobbyPlayerInfo
+struct FLobbyMemberInfo
 {
 	GENERATED_BODY()
 
-	UPROPERTY(BlueprintReadOnly, Category = "EOS")
+	UPROPERTY(BlueprintReadOnly, Category = "Lobby")
 	FString DisplayName;
 
-	UPROPERTY(BlueprintReadOnly, Category = "EOS")
-	bool bIsReady;
+	UPROPERTY(BlueprintReadOnly, Category = "Lobby")
+	FString UniqueIdString;
 
-	UPROPERTY(BlueprintReadOnly, Category = "EOS")
-	bool bIsLobbyLeader;
+	UPROPERTY(BlueprintReadOnly, Category = "Lobby")
+	bool bIsReady = false;
 };
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnLobbyCreated);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnLobbyJoined);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnLobbyLeft);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnMatchReadyToJoin, const FString&, ConnectionString);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnLobbyMembersUpdated, const TArray<FLobbyMemberInfo>&, Members);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnMatchmakingStatusUpdated, const FString&, StatusMessage);
 
 UCLASS()
 class FINALGAME_API UEOSLobbySubsystem : public UGameInstanceSubsystem
@@ -30,88 +37,104 @@ class FINALGAME_API UEOSLobbySubsystem : public UGameInstanceSubsystem
 	GENERATED_BODY()
 
 public:
-	virtual bool ShouldCreateSubsystem(UObject* Outer) const override;
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	virtual void Deinitialize() override;
 
 	UFUNCTION(BlueprintCallable, Category = "EOS|Lobby")
-	void CreateLobby();
+	void CreateOwnLobby();
+
+	UFUNCTION(BlueprintCallable, Category = "EOS|Lobby")
+	void JoinLobby(const FBlueprintSessionResult& SearchResult);
 
 	UFUNCTION(BlueprintCallable, Category = "EOS|Lobby")
 	void LeaveLobby();
 
-	UFUNCTION(BlueprintPure, Category = "EOS|Lobby")
-	bool IsInLobby() const;
-
-	UFUNCTION(BlueprintPure, Category = "EOS|Lobby")
-	int32 GetLobbyPlayerCount() const;
-
 	UFUNCTION(BlueprintCallable, Category = "EOS|Lobby")
-	void NotifyLobbyStateChanged();
+	void SetLocalPlayerReady(bool bReady);
 
 	UFUNCTION(BlueprintPure, Category = "EOS|Lobby")
-	TArray<FLobbyPlayerInfo> GetLobbyPlayersInfo();
-
-	// The Leader calls this to pull the whole lobby into the game
-	UFUNCTION(BlueprintCallable, Category = "EOS|Lobby")
-	void StartGame(FString ServerIP);
-
-	UPROPERTY(BlueprintAssignable, Category = "EOS|Lobby")
-	FOnLobbyStateChanged OnLobbyStateChanged;
-
-	UPROPERTY(BlueprintAssignable, Category = "EOS|Lobby")
-	FOnLeaveLobbyFinished OnLeaveLobbyFinished;
-
-	DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnLobbyMatchmakingStateSync, FString, State);
-
-	// Inside the class, add:
-	UFUNCTION(BlueprintCallable, Category = "EOS|Lobby")
-	void SyncMatchmakingState(FString NewState);
-
-	UPROPERTY(BlueprintAssignable, Category = "EOS|Lobby")
-	FOnLobbyMatchmakingStateSync OnLobbyMatchmakingStateSync;
+	bool AreAllPlayersReady() const;
 
 	UFUNCTION(BlueprintPure, Category = "EOS|Lobby")
-	bool IsLobbyLeader() const;
+	bool IsLobbyLeader() const { return bIsOwner; }
+
+	UFUNCTION(BlueprintPure, Category = "EOS|Lobby")
+	TArray<FLobbyMemberInfo> GetCurrentMembers() const { return CurrentMembers; }
 
 	UFUNCTION(BlueprintCallable, Category = "EOS|Lobby")
-	void SetPlayerReady(bool bIsReady);
+	void BroadcastServerIP(const FString& ConnectionString);
+
+	UFUNCTION(BlueprintCallable, Category = "EOS|Lobby")
+	void SyncMatchmakingState(const FString& StatusMessage);
 
 	UPROPERTY(BlueprintAssignable, Category = "EOS|Lobby")
-	FOnPlayerReadyUpdate OnPlayerReadyUpdate;
+	FOnLobbyCreated OnLobbyCreated;
+
+	UPROPERTY(BlueprintAssignable, Category = "EOS|Lobby")
+	FOnLobbyJoined OnLobbyJoined;
+
+	UPROPERTY(BlueprintAssignable, Category = "EOS|Lobby")
+	FOnLobbyLeft OnLobbyLeft;
+
+	UPROPERTY(BlueprintAssignable, Category = "EOS|Lobby")
+	FOnLobbyMembersUpdated OnLobbyMembersUpdated;
+
+	UPROPERTY(BlueprintAssignable, Category = "EOS|Lobby")
+	FOnMatchReadyToJoin OnMatchReadyToJoin;
+
+	UPROPERTY(BlueprintAssignable, Category = "EOS|Lobby")
+	FOnMatchmakingStatusUpdated OnMatchmakingStatusUpdated;
 
 private:
-	void OnCreateLobbyComplete(const UE::Online::TOnlineResult<UE::Online::FCreateLobby>& Result);
-	void OnLeaveLobbyComplete(const UE::Online::TOnlineResult<UE::Online::FLeaveLobby>& Result);
+	// Session callbacks
+	void HandleCreateSessionComplete(FName SessionName, bool bWasSuccessful);
+	void HandleJoinSessionComplete(FName SessionName, EOnJoinSessionCompleteResult::Type Result);
+	void HandleDestroySessionComplete(FName SessionName, bool bWasSuccessful);
+	void HandleSessionParticipantJoined(FName SessionName, const FUniqueNetId& UniqueId);
+	void HandleSessionParticipantLeft(FName SessionName, const FUniqueNetId& UniqueId, EOnSessionParticipantLeftReason Reason);
+	void HandleSessionUserInviteAccepted(const bool bWasSuccessful, const int32 ControllerId, FUniqueNetIdPtr UserId, const FOnlineSessionSearchResult& InviteResult);
+	void HandleSessionSettingsUpdated(FName SessionName, const FOnlineSessionSettings& UpdatedSettings);
+	// Presence callbacks
+	void HandlePresenceReceived(const FUniqueNetId& UserId, const TSharedRef<FOnlineUserPresence>& Presence);
+	void HandleSetPresenceComplete(const FUniqueNetId& UserId, const bool bWasSuccessful);
 
-	UE::Online::FOnlineEventDelegateHandle UIJoinRequestedHandle;
+	// Internal helpers
+	void RefreshMemberList();
+	void UpdatePresenceData();
+	void UpdateLobbyGlobalData();
+	// Queries presence for all peers so their display names are cached on the joining client
+	void QueryPresenceForTrackedUsers();
+	void HandleQueryPresenceComplete(const FUniqueNetId& UserId, const bool bWasSuccessful);
 
-	void OnLobbyJoinRequested(const UE::Online::FUILobbyJoinRequested& Event);
-	void OnJoinLobbyComplete(const UE::Online::TOnlineResult<UE::Online::FJoinLobby>& Result);
+	IOnlineSubsystem* GetOSS() const;
+	IOnlineSessionPtr GetSessionInterface() const;
 
-	void OnLobbyMemberJoined(const UE::Online::FLobbyMemberJoined& Event);
-	void OnLobbyMemberLeft(const UE::Online::FLobbyMemberLeft& Event);
+	TArray<FLobbyMemberInfo> CurrentMembers;
+	TArray<FUniqueNetIdPtr> TrackedUserIds;
 
-	// The new clean function to handle when the Leader broadcasts the Server IP
-	void OnLobbyAttributesUpdate(const UE::Online::FLobbyAttributesChanged& Event);
+	bool bIsInLobby = false;
+	bool bIsOwner = false;
+	bool bLocalPlayerReady = false;
+	bool bIsMatchmakingStarted = false;
+	bool bHasStartedTeleport = false;
+	bool bLeavingToJoin = false;
+
+	FString CachedServerIP;
+	FString CachedMatchStatus = TEXT("Idle");
+	FBlueprintSessionResult PendingJoinResult;
+
+	FDelegateHandle OnSessionParticipantJoinedHandle;
+	FDelegateHandle OnSessionParticipantLeftHandle;
+	FDelegateHandle OnCreateSessionHandle;
+	FDelegateHandle OnJoinSessionHandle;
+	FDelegateHandle OnDestroySessionHandle;
+	FDelegateHandle OnPresenceReceivedHandle;
+	FDelegateHandle OnSessionUserInviteAcceptedHandle;
+	FDelegateHandle OnSetPresenceCompleteHandle;
 
 
-	void OnLobbyMemberAttributesUpdate(const UE::Online::FLobbyMemberAttributesChanged& Event);
-	void CheckAllPlayersReady();
 
-	TSharedPtr<const UE::Online::FLobby> CachedLobbyObject;
+	FDelegateHandle OnSessionSettingsUpdatedHandle;
 
-	// Pending Join Logic
-	void ProcessJoinLobby(UE::Online::FAccountId InLocalAccountId, UE::Online::FLobbyId InLobbyId);
-	UE::Online::FLobbyId PendingLobbyId;
-	UE::Online::FAccountId PendingAccountId;
-	bool bHasPendingJoin = false;
-
-	UE::Online::FOnlineEventDelegateHandle MemberAttributesChangedHandle;
-	UE::Online::FLobbyId CurrentLobbyId;
-	UE::Online::FOnlineEventDelegateHandle MemberJoinedHandle;
-	UE::Online::FOnlineEventDelegateHandle MemberLeftHandle;
-	UE::Online::FOnlineEventDelegateHandle AttributesChangedHandle;
-
-	int32 CurrentPlayerCount = 0;
+	static const FName LobbySessionName;
 };
