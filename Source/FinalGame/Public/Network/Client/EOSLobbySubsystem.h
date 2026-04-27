@@ -7,6 +7,9 @@
 #include "OnlineSubsystem.h"
 #include "FindSessionsCallbackProxy.h"
 #include "Interfaces/OnlinePresenceInterface.h"
+#include "Dom/JsonObject.h"
+#include "Serialization/JsonSerializer.h"
+#include "Serialization/JsonReader.h"
 #include "EOSLobbySubsystem.generated.h"
 
 USTRUCT(BlueprintType)
@@ -58,6 +61,9 @@ public:
 	UFUNCTION(BlueprintPure, Category = "EOS|Lobby")
 	bool IsLobbyLeader() const { return bIsOwner; }
 
+	UFUNCTION()
+	void HandleMatchReadyToJoin(const FString& ConnectionString);
+
 	UFUNCTION(BlueprintPure, Category = "EOS|Lobby")
 	TArray<FLobbyMemberInfo> GetCurrentMembers() const { return CurrentMembers; }
 
@@ -84,6 +90,9 @@ public:
 
 	UPROPERTY(BlueprintAssignable, Category = "EOS|Lobby")
 	FOnMatchmakingStatusUpdated OnMatchmakingStatusUpdated;
+
+	UFUNCTION(BlueprintCallable, Category = "EOS|Lobby")
+	void BroadcastMatchInfo(const FString& ConnectionString, const FString& TeamAssignmentsJson);
 
 private:
 	// Session callbacks
@@ -119,6 +128,7 @@ private:
 	bool bHasStartedTeleport = false;
 	bool bLeavingToJoin = false;
 
+	FString CachedTeamAssignmentsJson;
 	FString CachedServerIP;
 	FString CachedMatchStatus = TEXT("Idle");
 	FBlueprintSessionResult PendingJoinResult;
