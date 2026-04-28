@@ -18,6 +18,7 @@ void UEOSLobbySubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	IOnlineSessionPtr Sessions = GetSessionInterface();
 	if (!Sessions.IsValid()) return;
 
+	OnMatchReadyToJoin.AddDynamic(this, &UEOSLobbySubsystem::HandleMatchReadyToJoin);
 	OnSessionUserInviteAcceptedHandle = Sessions->OnSessionUserInviteAcceptedDelegates.AddUObject(this, &UEOSLobbySubsystem::HandleSessionUserInviteAccepted);
 	OnSessionParticipantJoinedHandle = Sessions->OnSessionParticipantJoinedDelegates.AddUObject(this, &UEOSLobbySubsystem::HandleSessionParticipantJoined);
 	OnSessionParticipantLeftHandle = Sessions->OnSessionParticipantLeftDelegates.AddUObject(this, &UEOSLobbySubsystem::HandleSessionParticipantLeft);
@@ -38,6 +39,8 @@ void UEOSLobbySubsystem::Deinitialize()
 		Sessions->OnSessionParticipantJoinedDelegates.Remove(OnSessionParticipantJoinedHandle);
 		Sessions->OnSessionParticipantLeftDelegates.Remove(OnSessionParticipantLeftHandle);
 		Sessions->ClearOnSessionSettingsUpdatedDelegate_Handle(OnSessionSettingsUpdatedHandle);
+		OnMatchReadyToJoin.RemoveDynamic(this, &UEOSLobbySubsystem::HandleMatchReadyToJoin);
+
 	}
 
 	if (IOnlinePresencePtr Presence = GetOSS() ? GetOSS()->GetPresenceInterface() : nullptr)
@@ -46,6 +49,33 @@ void UEOSLobbySubsystem::Deinitialize()
 	}
 
 	Super::Deinitialize();
+}
+// EOSLobbySubsystem.cpp
+void UEOSLobbySubsystem::BroadcastMatchInfo(const FString& ConnectionString, const FString& TeamAssignmentsJson)
+{
+	if (!IsLobbyLeader()) return;
+	CachedServerIP = ConnectionString;
+	CachedTeamAssignmentsJson = TeamAssignmentsJson;
+	UpdateLobbyGlobalData();
+	RefreshMemberList();
+}
+
+
+void UEOSLobbySubsystem::HandleMatchReadyToJoin(const FString& ConnectionString)
+{
+	UEOSMatchmakingSubsystem* MatchSub =
+		GetGameInstance()->GetSubsystem<UEOSMatchmakingSubsystem>();
+	APlayerController* PC =
+		GetGameInstance()->GetFirstLocalPlayerController();
+
+	if (!PC || !MatchSub) return;
+
+	const int32 TeamID = MatchSub->PendingTeamID;
+	const FString URL = FString::Printf(TEXT("%s?Team=%d"), *ConnectionString, TeamID);
+
+	UE_LOG(LogTemp, Warning, TEXT("[Travel] About to ClientTravel to %s with team %d"), *URL, TeamID);
+
+	PC->ClientTravel(URL, TRAVEL_Absolute);
 }
 
 //  Public API
@@ -293,6 +323,10 @@ void UEOSLobbySubsystem::UpdateLobbyGlobalData()
 	if (!CachedServerIP.IsEmpty())
 		Session->SessionSettings.Set(TEXT("LobbyServerIP"), CachedServerIP, EOnlineDataAdvertisementType::ViaOnlineService);
 
+	if (!CachedTeamAssignmentsJson.IsEmpty())
+		Session->SessionSettings.Set(TEXT("TeamAssignments"), CachedTeamAssignmentsJson,
+			EOnlineDataAdvertisementType::ViaOnlineService);
+
 	Sessions->UpdateSession(LobbySessionName, Session->SessionSettings, true);
 }
 void UEOSLobbySubsystem::HandleSessionSettingsUpdated(FName SessionName, const FOnlineSessionSettings& UpdatedSettings)
@@ -392,6 +426,7 @@ void UEOSLobbySubsystem::RefreshMemberList()
 			MatchSub->StartMatchmaking();
 		}
 	}
+
 }
 
 void UEOSLobbySubsystem::ClearLobbyAvatars()

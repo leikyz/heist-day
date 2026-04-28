@@ -19,6 +19,12 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "Matchmaking")
 	FOnMatchFound OnMatchFound;
 
+	UPROPERTY(BlueprintReadOnly, Category = "Matchmaking")
+	int32 PendingTeamID = -1;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Matchmaking")
+	FString PendingServerIP;
+
 private:
 	void OnMatchmakingResponse(FHttpRequestPtr Request, FHttpResponsePtr Response, bool bWasSuccessful);
 };
