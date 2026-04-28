@@ -7,9 +7,6 @@
 #include "OnlineSubsystem.h"
 #include "FindSessionsCallbackProxy.h"
 #include "Interfaces/OnlinePresenceInterface.h"
-#include "Dom/JsonObject.h"
-#include "Serialization/JsonSerializer.h"
-#include "Serialization/JsonReader.h"
 #include "EOSLobbySubsystem.generated.h"
 
 USTRUCT(BlueprintType)
@@ -61,9 +58,6 @@ public:
 	UFUNCTION(BlueprintPure, Category = "EOS|Lobby")
 	bool IsLobbyLeader() const { return bIsOwner; }
 
-	UFUNCTION()
-	void HandleMatchReadyToJoin(const FString& ConnectionString);
-
 	UFUNCTION(BlueprintPure, Category = "EOS|Lobby")
 	TArray<FLobbyMemberInfo> GetCurrentMembers() const { return CurrentMembers; }
 
@@ -91,8 +85,18 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "EOS|Lobby")
 	FOnMatchmakingStatusUpdated OnMatchmakingStatusUpdated;
 
+	UFUNCTION()
+	void HandleMatchReadyToJoin(const FString& ConnectionString);
+
 	UFUNCTION(BlueprintCallable, Category = "EOS|Lobby")
 	void BroadcastMatchInfo(const FString& ConnectionString, const FString& TeamAssignmentsJson);
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Lobby Visuals")
+	TSubclassOf<AActor> AvatarActorClass;
+
+	// Configurable spawn locations for Player 1 (Index 0) and Player 2 (Index 1)
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Lobby Visuals")
+	TArray<FTransform> PlayerSpawnTransforms;
 
 private:
 	// Session callbacks
@@ -127,8 +131,8 @@ private:
 	bool bIsMatchmakingStarted = false;
 	bool bHasStartedTeleport = false;
 	bool bLeavingToJoin = false;
-
 	FString CachedTeamAssignmentsJson;
+
 	FString CachedServerIP;
 	FString CachedMatchStatus = TEXT("Idle");
 	FBlueprintSessionResult PendingJoinResult;
@@ -141,10 +145,12 @@ private:
 	FDelegateHandle OnPresenceReceivedHandle;
 	FDelegateHandle OnSessionUserInviteAcceptedHandle;
 	FDelegateHandle OnSetPresenceCompleteHandle;
-
-
-
 	FDelegateHandle OnSessionSettingsUpdatedHandle;
+
+	TArray<TWeakObjectPtr<AActor>> SpawnedAvatars;
+
+	void UpdateLobbyAvatars();
+	void ClearLobbyAvatars();
 
 	static const FName LobbySessionName;
 };
