@@ -85,6 +85,12 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "EOS|Lobby")
 	FOnMatchmakingStatusUpdated OnMatchmakingStatusUpdated;
 
+	UFUNCTION()
+	void HandleMatchReadyToJoin(const FString& ConnectionString);
+
+	UFUNCTION(BlueprintCallable, Category = "EOS|Lobby")
+	void BroadcastMatchInfo(const FString& ConnectionString, const FString& TeamAssignmentsJson);
+
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Lobby Visuals")
 	TSubclassOf<AActor> AvatarActorClass;
 
@@ -125,6 +131,7 @@ private:
 	bool bIsMatchmakingStarted = false;
 	bool bHasStartedTeleport = false;
 	bool bLeavingToJoin = false;
+	FString CachedTeamAssignmentsJson;
 
 	FString CachedServerIP;
 	FString CachedMatchStatus = TEXT("Idle");
