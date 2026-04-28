@@ -5,6 +5,7 @@
 #include "OnlineSessionSettings.h"
 #include "FindSessionsCallbackProxy.h"
 #include "OnlineSubsystemUtils.h"
+#include "Async/Async.h"
 
 const FName UEOSLobbySubsystem::LobbySessionName = NAME_GameSession;
 
@@ -166,6 +167,9 @@ void UEOSLobbySubsystem::HandleDestroySessionComplete(FName SessionName, bool bW
 	IOnlineSessionPtr Sessions = GetSessionInterface();
 	if (Sessions.IsValid()) Sessions->ClearOnDestroySessionCompleteDelegate_Handle(OnDestroySessionHandle);
 
+	// Destroy 3D models before flushing lobby data
+	ClearLobbyAvatars();
+
 	bIsInLobby = false;
 	bIsOwner = false;
 	bLocalPlayerReady = false;
@@ -186,7 +190,6 @@ void UEOSLobbySubsystem::HandleDestroySessionComplete(FName SessionName, bool bW
 		OnLobbyLeft.Broadcast();
 	}
 }
-
 void UEOSLobbySubsystem::HandleSessionParticipantJoined(FName SessionName, const FUniqueNetId& UniqueId)
 {
 	if (SessionName != LobbySessionName) return;
@@ -373,7 +376,12 @@ void UEOSLobbySubsystem::RefreshMemberList()
 	}
 
 	if (CurrentMembers.Num() > 0)
+	{
 		OnLobbyMembersUpdated.Broadcast(CurrentMembers);
+
+		// Trigger the 3D model spawn/update logic now that the array is accurate
+		UpdateLobbyAvatars();
+	}
 
 	// If everyone in the current lobby clicks ready, the leader fires the HTTP request.
 	if (IsLobbyLeader() && !bIsMatchmakingStarted && CurrentMembers.Num() > 0 && AreAllPlayersReady())
@@ -386,6 +394,66 @@ void UEOSLobbySubsystem::RefreshMemberList()
 	}
 }
 
+void UEOSLobbySubsystem::ClearLobbyAvatars()
+{
+	// Loop backwards when removing/destroying things from an array
+	for (int32 i = SpawnedAvatars.Num() - 1; i >= 0; --i)
+	{
+		if (SpawnedAvatars[i].IsValid())
+		{
+			SpawnedAvatars[i].Get()->Destroy();
+		}
+	}
+	SpawnedAvatars.Empty();
+}
+void UEOSLobbySubsystem::UpdateLobbyAvatars()
+{
+	UWorld* World = GetWorld();
+	if (!World) return;
+
+	// Use a timer to delay visual spawning to the next frame.
+	// This entirely disconnects the render thread allocation from the EOS callback stack, preventing D3D12 locks.
+	World->GetTimerManager().SetTimerForNextTick([this, WeakThis = TWeakObjectPtr<UEOSLobbySubsystem>(this)]()
+		{
+			if (!WeakThis.IsValid()) return;
+
+			UWorld* ValidWorld = WeakThis->GetWorld();
+
+			// CRITICAL: Do not attempt to spawn if the world is invalid or currently tearing down
+			if (!ValidWorld || ValidWorld->bIsTearingDown || !WeakThis->AvatarActorClass) return;
+
+			WeakThis->ClearLobbyAvatars();
+
+			// Fallback transforms if none are set in the Blueprint
+			if (WeakThis->PlayerSpawnTransforms.IsEmpty())
+			{
+				WeakThis->PlayerSpawnTransforms.Add(FTransform(FRotator(0.f, 180.f, 0.f), FVector(100.f, -100.f, 0.f))); // Player 1
+				WeakThis->PlayerSpawnTransforms.Add(FTransform(FRotator(0.f, 180.f, 0.f), FVector(100.f, 100.f, 0.f)));  // Player 2
+			}
+
+			const int32 MaxPlayers = 2;
+
+			// Spawn an avatar for each member currently in the lobby
+			for (int32 i = 0; i < WeakThis->CurrentMembers.Num() && i < MaxPlayers; ++i)
+			{
+				int32 TransformIndex = FMath::Min(i, WeakThis->PlayerSpawnTransforms.Num() - 1);
+
+				FActorSpawnParameters SpawnParams;
+				SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+				AActor* NewAvatar = ValidWorld->SpawnActor<AActor>(
+					WeakThis->AvatarActorClass,
+					WeakThis->PlayerSpawnTransforms[TransformIndex],
+					SpawnParams
+				);
+
+				if (NewAvatar)
+				{
+					WeakThis->SpawnedAvatars.Add(NewAvatar);
+				}
+			}
+		});
+}
 bool UEOSLobbySubsystem::AreAllPlayersReady() const
 {
 	if (CurrentMembers.IsEmpty()) return false;

@@ -85,6 +85,13 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "EOS|Lobby")
 	FOnMatchmakingStatusUpdated OnMatchmakingStatusUpdated;
 
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Lobby Visuals")
+	TSubclassOf<AActor> AvatarActorClass;
+
+	// Configurable spawn locations for Player 1 (Index 0) and Player 2 (Index 1)
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Lobby Visuals")
+	TArray<FTransform> PlayerSpawnTransforms;
+
 private:
 	// Session callbacks
 	void HandleCreateSessionComplete(FName SessionName, bool bWasSuccessful);
@@ -131,10 +138,12 @@ private:
 	FDelegateHandle OnPresenceReceivedHandle;
 	FDelegateHandle OnSessionUserInviteAcceptedHandle;
 	FDelegateHandle OnSetPresenceCompleteHandle;
-
-
-
 	FDelegateHandle OnSessionSettingsUpdatedHandle;
+
+	TArray<TWeakObjectPtr<AActor>> SpawnedAvatars;
+
+	void UpdateLobbyAvatars();
+	void ClearLobbyAvatars();
 
 	static const FName LobbySessionName;
 };
