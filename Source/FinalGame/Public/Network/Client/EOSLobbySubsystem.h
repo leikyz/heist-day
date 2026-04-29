@@ -91,6 +91,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "EOS|Lobby")
 	void BroadcastMatchInfo(const FString& ConnectionString, const FString& TeamAssignmentsJson);
 
+	UFUNCTION(BlueprintCallable, Category = "EOS|Overlay")
+	void ShowEpicOverlay();
+
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Lobby Visuals")
 	TSubclassOf<AActor> AvatarActorClass;
 

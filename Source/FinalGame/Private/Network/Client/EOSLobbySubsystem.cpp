@@ -5,6 +5,7 @@
 #include "OnlineSessionSettings.h"
 #include "FindSessionsCallbackProxy.h"
 #include "OnlineSubsystemUtils.h"
+#include "Interfaces/OnlineExternalUIInterface.h"
 #include "Async/Async.h"
 
 const FName UEOSLobbySubsystem::LobbySessionName = NAME_GameSession;
@@ -495,6 +496,23 @@ bool UEOSLobbySubsystem::AreAllPlayersReady() const
 	for (const FLobbyMemberInfo& M : CurrentMembers)
 		if (!M.bIsReady) return false;
 	return true;
+}
+
+void UEOSLobbySubsystem::ShowEpicOverlay()
+{
+	IOnlineSubsystem* OSS = GetOSS();
+	if (OSS)
+	{
+		IOnlineExternalUIPtr ExternalUI = OSS->GetExternalUIInterface();
+		if (ExternalUI.IsValid())
+		{
+			ExternalUI->ShowFriendsUI(0);
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("EOS: External UI Interface not found. Make sure EOS is enabled."));
+		}
+	}
 }
 
 IOnlineSubsystem* UEOSLobbySubsystem::GetOSS()              const { return IOnlineSubsystem::Get(); }
