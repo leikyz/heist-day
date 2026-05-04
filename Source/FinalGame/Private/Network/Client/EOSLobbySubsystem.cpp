@@ -398,14 +398,36 @@ void UEOSLobbySubsystem::RefreshMemberList()
 
 	FString MatchStatus;
 	FString FoundServerIP;
+	FString TeamAssignmentsJson;
+
 	Session->SessionSettings.Get(TEXT("MatchStatus"), MatchStatus);
 	Session->SessionSettings.Get(TEXT("LobbyServerIP"), FoundServerIP);
+	Session->SessionSettings.Get(TEXT("TeamAssignments"), TeamAssignmentsJson);
 
 	if (!MatchStatus.IsEmpty())
 		OnMatchmakingStatusUpdated.Broadcast(MatchStatus);
 
 	if (!FoundServerIP.IsEmpty() && !bHasStartedTeleport)
 	{
+		UEOSMatchmakingSubsystem* MatchSub = GetGameInstance()->GetSubsystem<UEOSMatchmakingSubsystem>();
+		UEOSIdentitySubsystem* IDSub = GetGameInstance()->GetSubsystem<UEOSIdentitySubsystem>();
+
+		if (MatchSub && IDSub && !TeamAssignmentsJson.IsEmpty())
+		{
+			TSharedPtr<FJsonObject> JsonObject;
+			TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(TeamAssignmentsJson);
+
+			if (FJsonSerializer::Deserialize(Reader, JsonObject))
+			{
+				FString MyNetId = IDSub->GetLocalUserId().GetUniqueNetId()->ToString();
+				int32 MyTeam = 0;
+				if (JsonObject->TryGetNumberField(MyNetId, MyTeam))
+				{
+					MatchSub->PendingTeamID = MyTeam;
+				}
+			}
+		}
+
 		bHasStartedTeleport = true;
 		OnMatchReadyToJoin.Broadcast(FoundServerIP);
 	}
@@ -414,7 +436,6 @@ void UEOSLobbySubsystem::RefreshMemberList()
 	{
 		OnLobbyMembersUpdated.Broadcast(CurrentMembers);
 
-		// Trigger the 3D model spawn/update logic now that the array is accurate
 		UpdateLobbyAvatars();
 	}
 
@@ -427,7 +448,6 @@ void UEOSLobbySubsystem::RefreshMemberList()
 			MatchSub->StartMatchmaking();
 		}
 	}
-
 }
 
 void UEOSLobbySubsystem::ClearLobbyAvatars()
