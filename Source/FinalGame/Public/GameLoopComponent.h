@@ -5,6 +5,8 @@
 #include "HeistDayGameState.h"
 #include "GameLoopComponent.generated.h"
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnTimerTickDelegate, float, RemainingSeconds);
+
 UCLASS(Blueprintable, ClassGroup = "Game Loop", meta = (BlueprintSpawnableComponent))
 class FINALGAME_API UGameLoopComponent : public UActorComponent
 {
@@ -22,11 +24,9 @@ public:
     UFUNCTION(BlueprintImplementableEvent, Category = "Game Loop|Events")
     void OnRoundStarted(int32 RoundNumber);
 
-    
-     // Called every frame-ish while a timed phase is active.
-     
-    UFUNCTION(BlueprintImplementableEvent, Category = "Game Loop|Events")
-    void OnTimerTick(float RemainingSeconds);
+    // Called every frame-ish while a timed phase is active. (Event Dispatcher pour les Widgets)
+    UPROPERTY(BlueprintAssignable, Category = "Heist|Events")
+    FOnTimerTickDelegate OnTimerTickEvent;
 
     // Called when a round ends.
     UFUNCTION(BlueprintImplementableEvent, Category = "Game Loop|Events")

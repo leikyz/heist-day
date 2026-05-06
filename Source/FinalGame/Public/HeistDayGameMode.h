@@ -48,7 +48,7 @@ public:
 
     /** Number of players expected before the first round starts. */
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Game Loop")
-    int32 ExpectedPlayerCount = 2;
+    int32 ExpectedPlayerCount = 1;
 
     // ── Public helpers — call these from your gameplay Blueprints/Components ──
 

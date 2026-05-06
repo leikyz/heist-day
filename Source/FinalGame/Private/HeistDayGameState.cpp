@@ -84,7 +84,10 @@ void AHeistDayGameState::Multicast_NotifyMatchEnded_Implementation(const FRoundR
 }
 
 // OnRep
-
+void AHeistDayGameState::OnRep_RemainingTime()
+{
+    OnRoundTimeUpdated.Broadcast(RemainingTime);
+}
 void AHeistDayGameState::OnRep_MatchPhase()
 {
     OnMatchPhaseChanged.Broadcast(MatchPhase);
