@@ -43,7 +43,6 @@ void UGameLoopComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 // ─────────────────────────────────────────────────────────────────────────────
 // BindToGameState — retries until the replicated GS is available
 // ─────────────────────────────────────────────────────────────────────────────
-
 void UGameLoopComponent::BindToGameState()
 {
     AHeistDayGameState* GS = GetWorld()
@@ -76,7 +75,6 @@ void UGameLoopComponent::BindToGameState()
 // ─────────────────────────────────────────────────────────────────────────────
 // Delegate handlers → fire Blueprint implementable events
 // ─────────────────────────────────────────────────────────────────────────────
-
 void UGameLoopComponent::HandlePhaseChanged(EMatchPhase NewPhase)
 {
     OnPhaseChanged(NewPhase);
@@ -87,7 +85,7 @@ void UGameLoopComponent::HandlePhaseChanged(EMatchPhase NewPhase)
 
 void UGameLoopComponent::HandleTimerTick(float RemainingSeconds)
 {
-    OnTimerTick(RemainingSeconds);
+    OnTimerTickEvent.Broadcast(RemainingSeconds);
 }
 
 void UGameLoopComponent::HandleRoundEnded(const FRoundResult& Result)
@@ -103,7 +101,6 @@ void UGameLoopComponent::HandleMatchEnded(const FRoundResult& R1, const FRoundRe
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────────────────────────────────────────
-
 EMatchPhase UGameLoopComponent::GetCurrentPhase() const
 {
     return CachedGameState.IsValid()

@@ -6,8 +6,8 @@
 
 AHeistDayGameMode::AHeistDayGameMode()
 {
-    PlayerStateClass = ANetworkPlayerState::StaticClass();
-    GameStateClass = AHeistDayGameState::StaticClass();
+   /* PlayerStateClass = ANetworkPlayerState::StaticClass();
+    GameStateClass = AHeistDayGameState::StaticClass();*/
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -39,6 +39,12 @@ class FINALGAME_API AHeistDayGameState : public AGameStateBase
 public:
     AHeistDayGameState();
 
+    UPROPERTY(ReplicatedUsing = OnRep_RemainingTime, VisibleAnywhere, BlueprintReadOnly, Category = "Heist|Time")
+    float RemainingTime;
+
+    UFUNCTION()
+    void OnRep_RemainingTime();
+
     // Replicated readable state
 
     UFUNCTION(BlueprintPure, Category = "Match")
@@ -91,9 +97,6 @@ protected:
 private:
     UPROPERTY(ReplicatedUsing = OnRep_MatchPhase)
     EMatchPhase MatchPhase = EMatchPhase::WaitingForPlayers;
-
-    UPROPERTY(Replicated)
-    float RemainingTime = 0.f;
 
     UPROPERTY(Replicated)
     FRoundResult Round1Result;
