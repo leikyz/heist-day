@@ -25,6 +25,8 @@ public:
 	UPROPERTY(BlueprintReadOnly, Category = "Matchmaking")
 	FString PendingServerIP;
 
+	
+
 private:
 	void OnMatchmakingResponse(FHttpRequestPtr Request, FHttpResponsePtr Response, bool bWasSuccessful);
 };
