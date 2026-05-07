@@ -56,6 +56,9 @@ public:
 	bool AreAllPlayersReady() const;
 
 	UFUNCTION(BlueprintPure, Category = "EOS|Lobby")
+	FString GetLobbyId() const { return LobbyId; }
+
+	UFUNCTION(BlueprintPure, Category = "EOS|Lobby")
 	bool IsLobbyLeader() const { return bIsOwner; }
 
 	UFUNCTION(BlueprintPure, Category = "EOS|Lobby")
@@ -134,8 +137,9 @@ private:
 	bool bIsMatchmakingStarted = false;
 	bool bHasStartedTeleport = false;
 	bool bLeavingToJoin = false;
-	FString CachedTeamAssignmentsJson;
 
+	FString LobbyId;
+	FString CachedTeamAssignmentsJson;
 	FString CachedServerIP;
 	FString CachedMatchStatus = TEXT("Idle");
 	FBlueprintSessionResult PendingJoinResult;
