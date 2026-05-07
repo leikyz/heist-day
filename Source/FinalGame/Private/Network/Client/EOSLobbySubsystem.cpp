@@ -164,6 +164,16 @@ void UEOSLobbySubsystem::HandleCreateSessionComplete(FName SessionName, bool bWa
 	bIsInLobby = true;
 	bIsOwner = true;
 
+	FNamedOnlineSession* NamedSession = Sessions->GetNamedSession(SessionName);
+
+	if (NamedSession && NamedSession->SessionInfo.IsValid())
+	{
+		// Real Lobby Id
+		LobbyId = NamedSession->SessionInfo->GetSessionId().ToString();
+
+		UE_LOG(LogTemp, Warning, TEXT("Lobby created successfully : %s"), *LobbyId);
+	}
+
 	if (UEOSIdentitySubsystem* ID = GetGameInstance()->GetSubsystem<UEOSIdentitySubsystem>())
 		TrackedUserIds.AddUnique(ID->GetLocalUserId().GetUniqueNetId());
 
