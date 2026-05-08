@@ -39,5 +39,8 @@ private:
     FTimerHandle RoundTimerHandle;
     int32 ConnectedCount = 0;
 
+    int32 ThiefCount = 0;
+    int32 EmployeeCount = 0;
+
     TSet<APlayerStart*> UsedPlayerStarts;
 };

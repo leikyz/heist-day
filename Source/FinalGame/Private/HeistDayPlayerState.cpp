@@ -6,6 +6,7 @@ void AHeistDayPlayerState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>&
     Super::GetLifetimeReplicatedProps(OutLifetimeProps);
     DOREPLIFETIME(AHeistDayPlayerState, TeamId);
     DOREPLIFETIME(AHeistDayPlayerState, Team);
+    DOREPLIFETIME(AHeistDayPlayerState, PlayerIndex);
 }
 
 void AHeistDayPlayerState::SetTeamId(int32 NewTeamId)
@@ -15,7 +16,14 @@ void AHeistDayPlayerState::SetTeamId(int32 NewTeamId)
         TeamId = NewTeamId;
     }
 }
-
+void AHeistDayPlayerState::SetPlayerIndex(int32 NewPlayerIndex)
+{
+    if (HasAuthority())
+    {
+        this->PlayerIndex = NewPlayerIndex;
+        UE_LOG(LogTemp, Warning, TEXT("[PlayerState] SetPlayerIndex = %d"), PlayerIndex);
+    }
+}
 void AHeistDayPlayerState::SetTeam(ETeam NewTeam)
 {
     if (HasAuthority())
@@ -38,3 +46,8 @@ void AHeistDayPlayerState::OnRep_Team()
 {
     UE_LOG(LogTemp, Warning, TEXT("[Client] Team received = %d for PlayerId = %d"), static_cast<int32>(Team), GetPlayerId());
 }
+
+void AHeistDayPlayerState::OnRep_PlayerIndex()
+{
+    UE_LOG(LogTemp, Warning, TEXT("[Client] PlayerIndex received = %d for PlayerId = %d"), PlayerIndex, GetPlayerId());
+}   

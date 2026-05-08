@@ -13,74 +13,75 @@ void AHeistDayGameMode::BeginPlay()
 AActor* AHeistDayGameMode::ChoosePlayerStart_Implementation(AController* Player)
 {
     AHeistDayPlayerState* PS = Player->GetPlayerState<AHeistDayPlayerState>();
-    if (!PS)
-    {
-        UE_LOG(LogTemp, Error, TEXT("[ChoosePlayerStart] No PlayerState!"));
-        return Super::ChoosePlayerStart_Implementation(Player);
-    }
-
-    UE_LOG(LogTemp, Warning, TEXT("[ChoosePlayerStart] Team = %d"), (int32)PS->GetTeam());
+    if (!PS) return Super::ChoosePlayerStart_Implementation(Player);
 
     FName TargetTag = (PS->GetTeam() == ETeam::Thief)
         ? FName("Thief")
         : FName("Employee");
 
-    UE_LOG(LogTemp, Warning, TEXT("[ChoosePlayerStart] Looking for tag = %s"), *TargetTag.ToString());
-
+    // collect all valid starts for this team
+    TArray<APlayerStart*> ValidStarts;
     for (TActorIterator<APlayerStart> It(GetWorld()); It; ++It)
     {
         APlayerStart* Start = *It;
-        UE_LOG(LogTemp, Warning, TEXT("[ChoosePlayerStart] Found start with tag = %s"), *Start->PlayerStartTag.ToString());
         if (Start->PlayerStartTag == TargetTag && !UsedPlayerStarts.Contains(Start))
-        {
-            UsedPlayerStarts.Add(Start);
-            return Start;
-        }
+            ValidStarts.Add(Start);
     }
 
-    UE_LOG(LogTemp, Error, TEXT("[ChoosePlayerStart] No valid start found!"));
+    // sort by name so First always comes before Second
+    ValidStarts.Sort([](const APlayerStart& A, const APlayerStart& B)
+        {
+            return A.GetName() < B.GetName();
+        });
+
+    if (ValidStarts.Num() > 0)
+    {
+        UsedPlayerStarts.Add(ValidStarts[0]);
+        return ValidStarts[0];
+    }
+
+    UE_LOG(LogTemp, Warning, TEXT("[ChoosePlayerStart] Team = %d PlayerIndex = %d"),
+        (int32)PS->GetTeam(), PS->GetPlayerIndex());
+
     return Super::ChoosePlayerStart_Implementation(Player);
 }
 
 void AHeistDayGameMode::PostLogin(APlayerController* NewPlayer)
 {
-    Super::PostLogin(NewPlayer);
-
     ConnectedCount++;
 
     if (auto* PS = NewPlayer->GetPlayerState<AHeistDayPlayerState>())
     {
         PS->SetTeamId(ConnectedCount);
-        PS->SetTeam(ConnectedCount == 1 ? ETeam::Thief : ETeam::Employee);
-        UE_LOG(LogTemp, Warning, TEXT("[PostLogin] PS valid, Team set to %d"), (int32)PS->GetTeam());
-    }
-    else
-    {
-        UE_LOG(LogTemp, Error, TEXT("[PostLogin] Cast to AHeistDayPlayerState FAILED"));
+
+        if (ConnectedCount == 1 || ConnectedCount == 2)
+        {
+            PS->SetTeam(ETeam::Thief);
+            ThiefCount++;
+            PS->SetPlayerIndex(ThiefCount);
+        }
+        else
+        {
+            PS->SetTeam(ETeam::Employee);
+            EmployeeCount++;
+            PS->SetPlayerIndex(EmployeeCount);
+        }
     }
 
-    APlayerController* PC = NewPlayer;
-    FTimerHandle RespawnDelay;
-    GetWorldTimerManager().SetTimer(RespawnDelay, [this, PC]()
-        {
-            if (IsValid(PC))
-                RestartPlayer(PC);
-        }, 0.2f, false);
+    Super::PostLogin(NewPlayer);
 
     if (ConnectedCount >= ExpectedPlayerCount)
     {
-        FTimerHandle PhaseDelay;
-        GetWorldTimerManager().SetTimer(PhaseDelay, [this]()
-            {
-                if (CachedGameState)
-                    CachedGameState->Server_SetMatchPhase(EMatchPhase::PreRound);
-            }, 1.0f, false);
+        if (CachedGameState)
+        {
+            CachedGameState->Server_SetMatchPhase(EMatchPhase::PreRound);
+        }
 
         FTimerHandle StartDelay;
         GetWorldTimerManager().SetTimer(StartDelay, [this]()
             {
                 StartRound();
-            }, 2.0f, false);
+            }, 12.0f, false);
     }
 }
 
