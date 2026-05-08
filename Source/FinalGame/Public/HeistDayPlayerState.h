@@ -20,7 +20,10 @@ public:
     UFUNCTION(BlueprintPure)
     int32 GetTeamId() const { return TeamId; }
 
-    // Server setters, clients receive the updated value in OnR
+    UFUNCTION(BlueprintPure)
+    ETeam GetTeam() const { return Team; }
+
+    // Server setters, clients receive the updated value in OnRep
     void SetTeamId(int32 NewTeamId);
     void SetTeam(ETeam NewTeam);
 private:

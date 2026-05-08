@@ -37,12 +37,12 @@ void AHeistDayGameState::Server_SetMatchPhase(EMatchPhase NewPhase)
 
 void AHeistDayGameState::OnRep_MatchPhase()
 {
-    // clients react here when phase changes
+    OnMatchPhaseChanged.Broadcast(MatchPhase);
 }
 
 
 void AHeistDayGameState::OnRep_RemainingTime()
 {
-    // clients receive the updated value here
-    // bind your widget to GetRemainingTime() directly
+    OnRemainingTimeChanged.Broadcast(RemainingTime);
+
 }
