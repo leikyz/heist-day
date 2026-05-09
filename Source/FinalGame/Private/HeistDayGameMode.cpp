@@ -55,6 +55,23 @@ AActor* AHeistDayGameMode::ChoosePlayerStart_Implementation(AController* Player)
     return Super::ChoosePlayerStart_Implementation(Player);
 }
 
+void AHeistDayGameMode::HandlePlayerDamage(AController* Victim, float DamageAmount)
+{
+    AHeistDayPlayerState* PS = Victim->GetPlayerState<AHeistDayPlayerState>();
+    if (!PS) return;
+
+    float NewHealth = PS->GetCurrentHealth() - DamageAmount;
+    PS->SetCurrentHealth(FMath::Max(0.f, NewHealth));
+
+    if (NewHealth <= 0.f)
+        HandlePlayerDeath(Victim);
+}
+
+void AHeistDayGameMode::HandlePlayerDeath(AController* Victim)
+{
+    // drop prop, drop keycard, ragdoll...
+}
+
 void AHeistDayGameMode::PostLogin(APlayerController* NewPlayer)
 {
     ConnectedCount++;

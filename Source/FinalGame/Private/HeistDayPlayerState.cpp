@@ -7,6 +7,20 @@ void AHeistDayPlayerState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>&
     DOREPLIFETIME(AHeistDayPlayerState, TeamId);
     DOREPLIFETIME(AHeistDayPlayerState, Team);
     DOREPLIFETIME(AHeistDayPlayerState, PlayerIndex);
+    DOREPLIFETIME(AHeistDayPlayerState, CurrentHealth);
+}
+
+void AHeistDayPlayerState::SetCurrentHealth(int32 NewHealth)
+{
+    if (HasAuthority())
+    {
+        CurrentHealth = FMath::Clamp(NewHealth, int32(0), MaxHealth);
+
+        if (CurrentHealth <= 0)
+            OnPlayerDied.Broadcast();
+
+        UE_LOG(LogTemp, Warning, TEXT("[PlayerState] SetCurrentHealth = %d for PlayerId = %d"), CurrentHealth, GetPlayerId());
+    }
 }
 
 void AHeistDayPlayerState::SetTeamId(int32 NewTeamId)
@@ -51,3 +65,11 @@ void AHeistDayPlayerState::OnRep_PlayerIndex()
 {
     UE_LOG(LogTemp, Warning, TEXT("[Client] PlayerIndex received = %d for PlayerId = %d"), PlayerIndex, GetPlayerId());
 }   
+
+void AHeistDayPlayerState::OnRep_CurrentHealth()
+{
+    UE_LOG(LogTemp, Warning, TEXT("[Client] CurrentHealth received = %d for PlayerId = %d"), CurrentHealth, GetPlayerId());
+
+    if (CurrentHealth <= 0)
+        OnPlayerDied.Broadcast();
+}

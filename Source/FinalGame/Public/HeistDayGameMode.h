@@ -20,6 +20,11 @@ public:
     virtual AActor* ChoosePlayerStart_Implementation(AController* Player) override;
     virtual void BeginPlay() override;
 
+    UFUNCTION(BlueprintCallable)
+    void HandlePlayerDamage(AController* Victim, float DamageAmount);
+
+    void HandlePlayerDeath(AController* Victim);
+
 protected:
     UPROPERTY(EditDefaultsOnly, Category = "Round")
     float RoundDuration = 180.f;

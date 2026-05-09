@@ -11,12 +11,17 @@ enum class ETeam : uint8
     Employee UMETA(DisplayName = "Employee")
 };
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnPlayerDied);
+
+
 UCLASS()
 class FINALGAME_API AHeistDayPlayerState : public APlayerState
 {
     GENERATED_BODY()
 
 public:
+    static constexpr uint8 MaxHealth = 100;
+
     UFUNCTION(BlueprintPure)
     int32 GetTeamId() const { return TeamId; }
 
@@ -26,13 +31,26 @@ public:
 	UFUNCTION(BlueprintPure)
 	int32 GetPlayerIndex() const { return PlayerIndex; }
 
+	UFUNCTION(BlueprintPure)
+	int32 GetCurrentHealth() const { return CurrentHealth; }
+
+	UFUNCTION(BlueprintPure)
+	bool IsDead() const { return CurrentHealth <= 0; }
+
+    UPROPERTY(BlueprintAssignable)
+    FOnPlayerDied OnPlayerDied;
+
     // Server setters, clients receive the updated value in OnRep
     void SetTeamId(int32 NewTeamId);
     void SetTeam(ETeam NewTeam);
     void SetPlayerIndex(int32 PlayerIndex);
+    void SetCurrentHealth(int32 NewHealth);
 private:
     UPROPERTY(ReplicatedUsing = OnRep_TeamId)
     int32 TeamId = 0;
+
+    UPROPERTY(ReplicatedUsing = OnRep_CurrentHealth)
+    int32 CurrentHealth = MaxHealth;
 
     UPROPERTY(ReplicatedUsing = OnRep_TeamId)
     int32 PlayerIndex = 0;
@@ -42,6 +60,11 @@ private:
 
     UFUNCTION()
     void OnRep_TeamId();
+
+
+
+    UFUNCTION()
+    void OnRep_CurrentHealth();
 
     UFUNCTION()
     void OnRep_PlayerIndex();
