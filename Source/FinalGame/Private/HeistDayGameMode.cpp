@@ -13,22 +13,27 @@ void AHeistDayGameMode::BeginPlay()
 AActor* AHeistDayGameMode::ChoosePlayerStart_Implementation(AController* Player)
 {
     AHeistDayPlayerState* PS = Player->GetPlayerState<AHeistDayPlayerState>();
-    if (!PS) return Super::ChoosePlayerStart_Implementation(Player);
+
+    if (!PS)
+    {
+        UE_LOG(LogTemp, Error, TEXT("[ChoosePlayerStart] ECHEC : Le PlayerState est NULL pour %s !"), *Player->GetName());
+        return Super::ChoosePlayerStart_Implementation(Player);
+    }
 
     FName TargetTag = (PS->GetTeam() == ETeam::Thief)
         ? FName("Thief")
         : FName("Employee");
 
-    // collect all valid starts for this team
     TArray<APlayerStart*> ValidStarts;
     for (TActorIterator<APlayerStart> It(GetWorld()); It; ++It)
     {
         APlayerStart* Start = *It;
-        if (Start->PlayerStartTag == TargetTag && !UsedPlayerStarts.Contains(Start))
+        if (Start->PlayerStartTag == TargetTag)
+        {
             ValidStarts.Add(Start);
+        }
     }
 
-    // sort by name so First always comes before Second
     ValidStarts.Sort([](const APlayerStart& A, const APlayerStart& B)
         {
             return A.GetName() < B.GetName();
@@ -36,12 +41,16 @@ AActor* AHeistDayGameMode::ChoosePlayerStart_Implementation(AController* Player)
 
     if (ValidStarts.Num() > 0)
     {
-        UsedPlayerStarts.Add(ValidStarts[0]);
-        return ValidStarts[0];
+        int32 SpawnIndex = FMath::Max(0, PS->GetPlayerIndex() - 1);
+        SpawnIndex = SpawnIndex % ValidStarts.Num();
+
+        UE_LOG(LogTemp, Warning, TEXT("[ChoosePlayerStart] SUCCES : Assigné au spawn %s pour %s (PlayerIndex : %d)"),
+            *ValidStarts[SpawnIndex]->GetName(), *Player->GetName(), PS->GetPlayerIndex());
+
+        return ValidStarts[SpawnIndex];
     }
 
-    UE_LOG(LogTemp, Warning, TEXT("[ChoosePlayerStart] Team = %d PlayerIndex = %d"),
-        (int32)PS->GetTeam(), PS->GetPlayerIndex());
+    UE_LOG(LogTemp, Error, TEXT("[ChoosePlayerStart] ERREUR : Aucun spawn trouvé pour l'équipe %s !"), *TargetTag.ToString());
 
     return Super::ChoosePlayerStart_Implementation(Player);
 }
@@ -54,18 +63,10 @@ void AHeistDayGameMode::PostLogin(APlayerController* NewPlayer)
     {
         PS->SetTeamId(ConnectedCount);
 
-        if (ConnectedCount == 1 || ConnectedCount == 2)
-        {
-            PS->SetTeam(ETeam::Thief);
-            ThiefCount++;
-            PS->SetPlayerIndex(ThiefCount);
-        }
-        else
-        {
-            PS->SetTeam(ETeam::Employee);
-            EmployeeCount++;
-            PS->SetPlayerIndex(EmployeeCount);
-        }
+        PS->SetTeam(ETeam::Thief);
+        EmployeeCount++;
+
+        PS->SetPlayerIndex(EmployeeCount);
     }
 
     Super::PostLogin(NewPlayer);
