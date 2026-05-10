@@ -23,6 +23,8 @@ public:
     UFUNCTION(BlueprintCallable)
     void HandlePlayerDamage(AController* Victim, float DamageAmount);
 
+    UFUNCTION(BlueprintCallable)
+	void HandleChangePlayerHealthValue(AController* Victim, int32 NewHealth);   
     void HandlePlayerDeath(AController* Victim);
 
 protected:
