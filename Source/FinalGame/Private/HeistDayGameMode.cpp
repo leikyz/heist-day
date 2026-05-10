@@ -67,9 +67,23 @@ void AHeistDayGameMode::HandlePlayerDamage(AController* Victim, float DamageAmou
         HandlePlayerDeath(Victim);
 }
 
+void AHeistDayGameMode::HandleChangePlayerHealthValue(AController* Victim, int32 NewHealth)
+{
+    AHeistDayPlayerState* PS = Victim->GetPlayerState<AHeistDayPlayerState>();
+    if (!PS) return;
+
+    if (NewHealth < 0 || NewHealth > AHeistDayPlayerState::MaxHealth)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[HandleChangePlayerHealthValue] Try to set invalid health value (%d) for %s"), NewHealth, *Victim->GetName());
+        return;
+	}
+
+    PS->SetCurrentHealth(NewHealth);
+}
+
 void AHeistDayGameMode::HandlePlayerDeath(AController* Victim)
 {
-    // drop prop, drop keycard, ragdoll...
+    
 }
 
 void AHeistDayGameMode::PostLogin(APlayerController* NewPlayer)
