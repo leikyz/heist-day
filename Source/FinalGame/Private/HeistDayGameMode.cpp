@@ -16,7 +16,7 @@ AActor* AHeistDayGameMode::ChoosePlayerStart_Implementation(AController* Player)
 
     if (!PS)
     {
-        UE_LOG(LogTemp, Error, TEXT("[ChoosePlayerStart] ECHEC : Le PlayerState est NULL pour %s !"), *Player->GetName());
+        UE_LOG(LogTemp, Error, TEXT("[ChoosePlayerStart] Failed : PlayerState is NULL for %s !"), *Player->GetName());
         return Super::ChoosePlayerStart_Implementation(Player);
     }
 
@@ -43,16 +43,31 @@ AActor* AHeistDayGameMode::ChoosePlayerStart_Implementation(AController* Player)
     {
         int32 SpawnIndex = FMath::Max(0, PS->GetPlayerIndex() - 1);
         SpawnIndex = SpawnIndex % ValidStarts.Num();
-
-        UE_LOG(LogTemp, Warning, TEXT("[ChoosePlayerStart] SUCCES : Assigné au spawn %s pour %s (PlayerIndex : %d)"),
+        UE_LOG(LogTemp, Warning, TEXT("[ChoosePlayerStart] Success : Spawn %s assigned to %s (PlayerIndex : %d)"),
             *ValidStarts[SpawnIndex]->GetName(), *Player->GetName(), PS->GetPlayerIndex());
 
         return ValidStarts[SpawnIndex];
     }
 
-    UE_LOG(LogTemp, Error, TEXT("[ChoosePlayerStart] ERREUR : Aucun spawn trouvé pour l'équipe %s !"), *TargetTag.ToString());
+    UE_LOG(LogTemp, Error, TEXT("[ChoosePlayerStart] Error: No valid spawn found for team %s !"), *TargetTag.ToString());
 
     return Super::ChoosePlayerStart_Implementation(Player);
+}
+
+bool AHeistDayGameMode::CheckAllThiefDead()
+{
+    if (!CachedGameState) return false;
+    for (APlayerState* PS : CachedGameState->PlayerArray)
+    {
+        AHeistDayPlayerState* HeistPS = Cast<AHeistDayPlayerState>(PS);
+        if (HeistPS && HeistPS->GetTeam() == ETeam::Thief && !HeistPS->IsDead())
+        {
+            return false;
+        }
+    }
+
+    UE_LOG(LogTemp, Warning, TEXT("[GameMode] All thiefs are dead!"));
+    return true;
 }
 
 void AHeistDayGameMode::HandlePlayerDamage(AController* Victim, float DamageAmount)
@@ -63,8 +78,17 @@ void AHeistDayGameMode::HandlePlayerDamage(AController* Victim, float DamageAmou
     float NewHealth = PS->GetCurrentHealth() - DamageAmount;
     PS->SetCurrentHealth(FMath::Max(0.f, NewHealth));
 
-    if (NewHealth <= 0.f)
-        HandlePlayerDeath(Victim);
+    if (!CheckAllThiefDead())
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[GameMode] Thiefs are still alive, round continues."));
+
+    }
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[GameMode] All thiefs are dead, round should end."));
+        GetWorldTimerManager().ClearTimer(RoundTimerHandle);
+        // Handle end of round logic here (e.g., declare winner, reset level, etc.)
+    }
 }
 
 void AHeistDayGameMode::HandleChangePlayerHealthValue(AController* Victim, int32 NewHealth)
@@ -81,10 +105,10 @@ void AHeistDayGameMode::HandleChangePlayerHealthValue(AController* Victim, int32
     PS->SetCurrentHealth(NewHealth);
 }
 
-void AHeistDayGameMode::HandlePlayerDeath(AController* Victim)
-{
-    
-}
+//void AHeistDayGameMode::HandlePlayerDeath(AController* Victim)
+//{
+//    
+//}
 
 void AHeistDayGameMode::PostLogin(APlayerController* NewPlayer)
 {
@@ -94,46 +118,116 @@ void AHeistDayGameMode::PostLogin(APlayerController* NewPlayer)
     {
         PS->SetTeamId(ConnectedCount);
 
-        PS->SetTeam(ETeam::Thief);
-        EmployeeCount++;
+        if (ConnectedCount % 2 != 0)
+        {
+            PS->SetTeam(ETeam::Thief);
+            ThiefCount++;
+            PS->SetPlayerIndex(ThiefCount);
 
-        PS->SetPlayerIndex(EmployeeCount);
+            UE_LOG(LogTemp, Warning, TEXT("[GameMode] Player %d assigned as Thief. (Total Thief: %d)"), ConnectedCount, ThiefCount);
+        }
+        else
+        {
+            PS->SetTeam(ETeam::Employee);
+            EmployeeCount++;
+            PS->SetPlayerIndex(EmployeeCount);
+
+            UE_LOG(LogTemp, Warning, TEXT("[GameMode] Player %d assigned as Employee. (Total Employee: %d)"), ConnectedCount, EmployeeCount);
+        }
     }
 
     Super::PostLogin(NewPlayer);
 
-    if (ConnectedCount >= ExpectedPlayerCount)
-    {
-        if (CachedGameState)
-        {
-            CachedGameState->Server_SetMatchPhase(EMatchPhase::PreRound);
-        }
-
-        FTimerHandle StartDelay;
-        GetWorldTimerManager().SetTimer(StartDelay, [this]()
-            {
-                StartRound();
-            }, 12.0f, false);
-    }
+   
 }
-
-void AHeistDayGameMode::StartRound()
+void AHeistDayGameMode::StartRound(int roundNumber)
 {
     UsedPlayerStarts.Empty();
 
     if (!CachedGameState) return;
 
     CachedGameState->Server_SetRemainingTime(RoundDuration);
-    CachedGameState->Server_SetMatchPhase(EMatchPhase::FirstRound);
+
+    switch (roundNumber)
+    {
+    case 1:
+        CachedGameState->Server_SetMatchPhase(EMatchPhase::FirstRound);
+		break;
+	case 2:
+        CachedGameState->Server_SetMatchPhase(EMatchPhase::SecondRound);
+        break;
+    default:
+        CachedGameState->Server_SetMatchPhase(EMatchPhase::FirstRound);
+        break;
+    }
 
     GetWorldTimerManager().SetTimer(RoundTimerHandle,
         this, &AHeistDayGameMode::OnRoundTimerExpired,
         RoundDuration, false);
 
-    UE_LOG(LogTemp, Warning, TEXT("[GameMode] Round started — %.0f s"), RoundDuration);
+    UE_LOG(LogTemp, Warning, TEXT("[GameMode] Round #%d started — %.0f s"), roundNumber, RoundDuration);
+}
+
+void AHeistDayGameMode::OnClientReady()
+{
+    ReadyPlayersCount++;
+    UE_LOG(LogTemp, Warning, TEXT("[GameMode] Un client est prêt ! (%d/%d)"), ReadyPlayersCount, ExpectedPlayerCount);
+
+    if (ReadyPlayersCount == ExpectedPlayerCount)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[GameMode] Tous les joueurs sont prêts ! Lancement du PreRound..."));
+
+        if (CachedGameState)
+        {
+            CachedGameState->Server_SetMatchPhase(EMatchPhase::PreRound);
+            CachedGameState->Server_SetRemainingTime(12.0f);
+        }
+
+        FTimerHandle StartDelay;
+        GetWorldTimerManager().SetTimer(StartDelay, [this]()
+            {
+                StartRound(1); // Always first round
+            }, 12.0f, false);
+    }
 }
 
 void AHeistDayGameMode::OnRoundTimerExpired()
 {
     UE_LOG(LogTemp, Warning, TEXT("[GameMode] Round over."));
+
+    if (CachedGameState == nullptr)
+    {
+        UE_LOG(LogTemp, Error, TEXT("[GameMode] CachedGameState is null in OnRoundTimerExpired!"));
+        return;
+    }
+
+    switch (CachedGameState->GetMatchPhase())
+    {
+    case EMatchPhase::FirstRound:
+    {
+        CachedGameState->Server_SetMatchPhase(EMatchPhase::FirstRoundEnd);
+
+        UE_LOG(LogTemp, Warning, TEXT("[GameMode] First round ended. Starting second round after delay."));
+
+        FTimerHandle StartDelay;
+        GetWorldTimerManager().SetTimer(StartDelay, [this]()
+            {
+                StartRound(2); // Always second round
+            }, 12.0f, false);
+
+        break;
+    } 
+
+    case EMatchPhase::SecondRound:
+    {
+        CachedGameState->Server_SetMatchPhase(EMatchPhase::SecondRoundEnd);
+
+        UE_LOG(LogTemp, Warning, TEXT("[GameMode] Second round ended. Match should end or restart after delay."));
+
+        break;
+    }
+
+    default:
+        break;
+    }
 }

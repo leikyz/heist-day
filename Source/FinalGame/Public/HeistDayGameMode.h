@@ -24,21 +24,26 @@ public:
     void HandlePlayerDamage(AController* Victim, float DamageAmount);
 
     UFUNCTION(BlueprintCallable)
-	void HandleChangePlayerHealthValue(AController* Victim, int32 NewHealth);   
-    void HandlePlayerDeath(AController* Victim);
+	void HandleChangePlayerHealthValue(AController* Victim, int32 NewHealth); 
+
+    void OnClientReady();
+
+    //void HandlePlayerDeath(AController* Victim);
 
 protected:
     UPROPERTY(EditDefaultsOnly, Category = "Round")
-    float RoundDuration = 180.f;
+    float RoundDuration = 10.f;
 
     UPROPERTY(EditDefaultsOnly, Category = "Round")
     int32 ExpectedPlayerCount = 2;
-
+    int32 ReadyPlayersCount = 0;
 
 
 private:
-    void StartRound();
+    void StartRound(int roundNumber);
     void OnRoundTimerExpired();
+
+	bool CheckAllThiefDead();
 
     UPROPERTY()
     AHeistDayGameState* CachedGameState = nullptr;

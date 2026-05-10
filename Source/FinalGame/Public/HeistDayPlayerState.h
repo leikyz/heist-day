@@ -45,6 +45,9 @@ public:
     void SetTeam(ETeam NewTeam);
     void SetPlayerIndex(int32 PlayerIndex);
     void SetCurrentHealth(int32 NewHealth);
+
+    UFUNCTION(Server, Reliable, BlueprintCallable, Category = "Match")
+    void Server_ClientIsReady();
 private:
     UPROPERTY(ReplicatedUsing = OnRep_TeamId)
     int32 TeamId = 0;

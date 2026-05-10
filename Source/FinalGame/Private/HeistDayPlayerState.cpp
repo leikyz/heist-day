@@ -1,5 +1,6 @@
 #include "HeistDayPlayerState.h"
 #include "Net/UnrealNetwork.h"
+#include <HeistDayGameMode.h>
 
 void AHeistDayPlayerState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
@@ -23,6 +24,16 @@ void AHeistDayPlayerState::SetCurrentHealth(int32 NewHealth)
     }
 }
 
+void AHeistDayPlayerState::Server_ClientIsReady_Implementation()
+{
+    if (HasAuthority())
+    {
+        if (AHeistDayGameMode* GM = Cast<AHeistDayGameMode>(GetWorld()->GetAuthGameMode()))
+        {
+            GM->OnClientReady();
+        }
+    }
+}
 void AHeistDayPlayerState::SetTeamId(int32 NewTeamId)
 {
     if (HasAuthority())
