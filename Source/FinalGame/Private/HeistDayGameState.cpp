@@ -4,6 +4,7 @@
 AHeistDayGameState::AHeistDayGameState()
 {
     PrimaryActorTick.bCanEverTick = true;
+    CurrentMatchData = FMatchData();
 }
 
 void AHeistDayGameState::GetLifetimeReplicatedProps(
@@ -13,6 +14,7 @@ void AHeistDayGameState::GetLifetimeReplicatedProps(
 
     DOREPLIFETIME(AHeistDayGameState, RemainingTime);
     DOREPLIFETIME(AHeistDayGameState, MatchPhase);
+    DOREPLIFETIME(AHeistDayGameState, CurrentMatchData);
 }
 
 void AHeistDayGameState::Tick(float DeltaSeconds)

@@ -22,6 +22,9 @@ class FINALGAME_API AHeistDayPlayerState : public APlayerState
 public:
     static constexpr uint8 MaxHealth = 100;
 
+    UFUNCTION(BlueprintPure, Category = "Player")
+    FString GetEpicAccountName() const { return EpicAccountName; }
+
     UFUNCTION(BlueprintPure)
     int32 GetTeamId() const { return TeamId; }
 
@@ -45,9 +48,16 @@ public:
     void SetTeam(ETeam NewTeam);
     void SetPlayerIndex(int32 PlayerIndex);
     void SetCurrentHealth(int32 NewHealth);
+    void SetEpicAccountName(const FString& InName) { EpicAccountName = InName; }
+
+    UPROPERTY(Replicated, BlueprintReadOnly, Category = "Player")
+    FString EpicAccountName;
 
     UFUNCTION(Server, Reliable, BlueprintCallable, Category = "Match")
     void Server_ClientIsReady();
+
+    UFUNCTION(Server, Reliable, BlueprintCallable, Category = "Player")
+    void Server_SetEpicName(const FString& NewName);
 private:
     UPROPERTY(ReplicatedUsing = OnRep_TeamId)
     int32 TeamId = 0;
@@ -55,11 +65,13 @@ private:
     UPROPERTY(ReplicatedUsing = OnRep_CurrentHealth)
     int32 CurrentHealth = MaxHealth;
 
-    UPROPERTY(ReplicatedUsing = OnRep_TeamId)
+    UPROPERTY(ReplicatedUsing = OnRep_PlayerIndex)
     int32 PlayerIndex = 0;
 
     UPROPERTY(ReplicatedUsing = OnRep_Team)
     ETeam Team = ETeam::None;
+
+
 
     UFUNCTION()
     void OnRep_TeamId();

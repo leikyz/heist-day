@@ -9,6 +9,7 @@ void AHeistDayPlayerState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>&
     DOREPLIFETIME(AHeistDayPlayerState, Team);
     DOREPLIFETIME(AHeistDayPlayerState, PlayerIndex);
     DOREPLIFETIME(AHeistDayPlayerState, CurrentHealth);
+    DOREPLIFETIME(AHeistDayPlayerState, EpicAccountName);
 }
 
 void AHeistDayPlayerState::SetCurrentHealth(int32 NewHealth)
@@ -24,6 +25,12 @@ void AHeistDayPlayerState::SetCurrentHealth(int32 NewHealth)
     }
 }
 
+void AHeistDayPlayerState::Server_SetEpicName_Implementation(const FString& NewName)
+{
+    EpicAccountName = NewName;
+
+    UE_LOG(LogTemp, Warning, TEXT("[Server] Nom EOS synchronisé pour le PlayerState : %s"), *EpicAccountName);
+}
 void AHeistDayPlayerState::Server_ClientIsReady_Implementation()
 {
     if (HasAuthority())

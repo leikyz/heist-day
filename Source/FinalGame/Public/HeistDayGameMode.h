@@ -28,11 +28,12 @@ public:
 
     void OnClientReady();
 
+
     //void HandlePlayerDeath(AController* Victim);
 
 protected:
     UPROPERTY(EditDefaultsOnly, Category = "Round")
-    float RoundDuration = 10.f;
+    float RoundDuration = 20.f;
 
     UPROPERTY(EditDefaultsOnly, Category = "Round")
     int32 ExpectedPlayerCount = 2;

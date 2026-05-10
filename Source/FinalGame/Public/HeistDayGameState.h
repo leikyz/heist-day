@@ -31,11 +31,37 @@ struct FTeamData
     TArray<AHeistDayPlayerState*> Players;
 
     UPROPERTY(BlueprintReadOnly)
-    int32 Round1Score = 0;
+    int32 ThiefScore = 0;
 
     UPROPERTY(BlueprintReadOnly)
-    int32 Round2Score = 0;
+    int32 EmployeeScore = 0;
 };
+
+USTRUCT(BlueprintType)
+struct FRoundData
+{
+    GENERATED_BODY()
+
+    UPROPERTY(BlueprintReadOnly)
+    FTeamData FirstTeam;
+
+    UPROPERTY(BlueprintReadOnly)
+    FTeamData SecondTeam;
+
+    FTeamData RoundWinnerTeam;
+};
+
+USTRUCT(BlueprintType)
+struct FMatchData
+{
+    GENERATED_BODY()
+
+    FRoundData Round1Data;
+    FRoundData Round2Data;
+
+	FTeamData MatchWinnerTeam;
+};
+
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnMatchPhaseChanged, EMatchPhase, NewPhase);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnRemainingTimeChanged, float, RemainingSeconds);
@@ -48,6 +74,8 @@ class FINALGAME_API AHeistDayGameState : public AGameState
 public:
     AHeistDayGameState();
 
+    friend class AHeistDayGameMode;
+
     virtual void GetLifetimeReplicatedProps(
         TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
@@ -59,6 +87,9 @@ public:
     UFUNCTION(BlueprintPure)
     float GetRemainingTime() const { return RemainingTime; }
 
+    UFUNCTION(BlueprintPure, Category = "Match")
+    FMatchData GetCurrentMatchData() const { return CurrentMatchData; }
+
     UFUNCTION(BlueprintPure)
     EMatchPhase GetMatchPhase() const { return MatchPhase; }
     // Events
@@ -68,12 +99,17 @@ public:
     UPROPERTY(BlueprintAssignable)
     FOnRemainingTimeChanged OnRemainingTimeChanged;
 
+
+
 private:
     UPROPERTY(ReplicatedUsing = OnRep_RemainingTime)
     float RemainingTime = 0.f;
 
     UPROPERTY(ReplicatedUsing = OnRep_MatchPhase)
     EMatchPhase MatchPhase = EMatchPhase::WaitingForPlayers;
+
+    UPROPERTY(Replicated) 
+    FMatchData CurrentMatchData;
 
     UFUNCTION()
     void OnRep_RemainingTime();

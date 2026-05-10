@@ -114,31 +114,55 @@ void AHeistDayGameMode::PostLogin(APlayerController* NewPlayer)
 {
     ConnectedCount++;
 
-    if (auto* PS = NewPlayer->GetPlayerState<AHeistDayPlayerState>())
+    AHeistDayPlayerState* PS = NewPlayer->GetPlayerState<AHeistDayPlayerState>();
+    if (!PS || !CachedGameState)
     {
-        PS->SetTeamId(ConnectedCount);
-
-        if (ConnectedCount % 2 != 0)
-        {
-            PS->SetTeam(ETeam::Thief);
-            ThiefCount++;
-            PS->SetPlayerIndex(ThiefCount);
-
-            UE_LOG(LogTemp, Warning, TEXT("[GameMode] Player %d assigned as Thief. (Total Thief: %d)"), ConnectedCount, ThiefCount);
-        }
-        else
-        {
-            PS->SetTeam(ETeam::Employee);
-            EmployeeCount++;
-            PS->SetPlayerIndex(EmployeeCount);
-
-            UE_LOG(LogTemp, Warning, TEXT("[GameMode] Player %d assigned as Employee. (Total Employee: %d)"), ConnectedCount, EmployeeCount);
-        }
+        Super::PostLogin(NewPlayer);
+        return;
     }
+
+    // 1. Déterminer l'ID d'équipe (1 ou 2)
+    int32 AssignedTeamId = (ConnectedCount % 2 != 0) ? 1 : 2;
+    PS->SetTeamId(AssignedTeamId);
+
+    // 2. Assigner l'équipe et l'index (Logique de base)
+    if (AssignedTeamId == 1)
+    {
+        PS->SetTeam(ETeam::Thief);
+        ThiefCount++;
+        PS->SetPlayerIndex(ThiefCount);
+    }
+    else
+    {
+        PS->SetTeam(ETeam::Employee);
+        EmployeeCount++;
+        PS->SetPlayerIndex(EmployeeCount);
+    }
+
+    FTeamData& TargetTeamData = (AssignedTeamId == 1)
+        ? CachedGameState->CurrentMatchData.Round1Data.FirstTeam
+        : CachedGameState->CurrentMatchData.Round1Data.SecondTeam;
+
+    if (TargetTeamData.TeamId == 0)
+    {
+        TargetTeamData.TeamId = AssignedTeamId;
+        TargetTeamData.Team = PS->GetTeam();
+        UE_LOG(LogTemp, Warning, TEXT("[GameMode] Initialisation de la Team %d dans MatchData"), AssignedTeamId);
+    }
+
+    TargetTeamData.Players.Add(PS);
+    UE_LOG(LogTemp, Warning, TEXT("[GameMode] Joueur %s ajouté à la structure MatchData de la Team %d"), *PS->GetPlayerName(), AssignedTeamId);
 
     Super::PostLogin(NewPlayer);
 
-   
+  /*  if (ConnectedCount >= ExpectedPlayerCount)
+    {
+        CachedGameState->Server_SetMatchPhase(EMatchPhase::PreRound);
+        CachedGameState->Server_SetRemainingTime(12.0f);
+
+        FTimerHandle StartDelay;
+        GetWorldTimerManager().SetTimer(StartDelay, [this]() { StartRound(1); }, 12.0f, false);
+    }*/
 }
 void AHeistDayGameMode::StartRound(int roundNumber)
 {
