@@ -80,6 +80,9 @@ void AHeistDayGameMode::HandlePlayerDamage(AController* Victim, AController* Att
     float NewHealth = VictimPS->GetCurrentHealth() - DamageAmount;
     VictimPS->SetCurrentHealth(FMath::Max(0.f, NewHealth));
 
+    UE_LOG(LogTemp, Warning, TEXT("[GameMode] %s took %.1f damage from %s, new health: %d"),
+		*Victim->GetName(), DamageAmount, Attacker ? *Attacker->GetName() : TEXT("Environment"), VictimPS->GetCurrentHealth());
+
     if (VictimPS->IsDead())
     {
         UE_LOG(LogTemp, Warning, TEXT("[GameMode] %s has died!"), *Victim->GetName());

@@ -28,6 +28,8 @@ void AHeistDayPlayerState::SetCurrentHealth(int32 NewHealth)
         if (CurrentHealth <= 0)
             OnPlayerDied.Broadcast();
 
+        OnStatsChanged.Broadcast(this);
+
         UE_LOG(LogTemp, Warning, TEXT("[PlayerState] SetCurrentHealth = %d for PlayerId = %d"), CurrentHealth, GetPlayerId());
     }
 }
@@ -105,6 +107,8 @@ void AHeistDayPlayerState::OnRep_CurrentHealth()
 
     if (CurrentHealth <= 0)
         OnPlayerDied.Broadcast();
+
+    OnStatsChanged.Broadcast(this);
 }
 void AHeistDayPlayerState::OnRep_StatsChanged()
 {
@@ -120,7 +124,7 @@ void AHeistDayPlayerState::AddKill(int32 RoundNumber)
         else if (RoundNumber == 2)
             SecondRound.KillsCount++;
 
-		UE_LOG(LogTemp, Warning, TEXT("[PlayerState] AddKill for Round %d. Total kills: %d"), RoundNumber, (RoundNumber == 1) ? FirstRound.KillsCount : SecondRound.KillsCount);
+		UE_LOG(LogTemp, Warning, TEXT("[PlayerState] AddKill to player %d for Round %d. Total kills: %d"), GetPlayerId(), RoundNumber, (RoundNumber == 1) ? FirstRound.KillsCount : SecondRound.KillsCount);
 
         OnStatsChanged.Broadcast(this);
     }
@@ -134,7 +138,7 @@ void AHeistDayPlayerState::AddDeath(int32 RoundNumber)
         else if (RoundNumber == 2)
             SecondRound.DeathsCount++;
 
-		UE_LOG(LogTemp, Warning, TEXT("[PlayerState] AddDeath for Round %d. Total deaths: %d"), RoundNumber, (RoundNumber == 1) ? FirstRound.DeathsCount : SecondRound.DeathsCount);
+		UE_LOG(LogTemp, Warning, TEXT("[PlayerState] AddDeath to player %d for Round %d. Total deaths: %d"), GetPlayerId(), RoundNumber, (RoundNumber == 1) ? FirstRound.DeathsCount : SecondRound.DeathsCount);
 
         OnStatsChanged.Broadcast(this);
     }
