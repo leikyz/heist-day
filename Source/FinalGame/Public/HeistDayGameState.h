@@ -34,11 +34,11 @@ struct FTeamData
     int32 ThiefScore = 0;
 
     UPROPERTY(BlueprintReadOnly)
-    int32 EmployeeScore = 0;
+    int32 EmployeeScore = 10000;
 };
 
 USTRUCT(BlueprintType)
-struct FRoundData
+struct FMatchData
 {
     GENERATED_BODY()
 
@@ -47,17 +47,6 @@ struct FRoundData
 
     UPROPERTY(BlueprintReadOnly)
     FTeamData SecondTeam;
-
-    FTeamData RoundWinnerTeam;
-};
-
-USTRUCT(BlueprintType)
-struct FMatchData
-{
-    GENERATED_BODY()
-
-    FRoundData Round1Data;
-    FRoundData Round2Data;
 
 	FTeamData MatchWinnerTeam;
 };

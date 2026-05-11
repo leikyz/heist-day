@@ -2,6 +2,11 @@
 #include "Net/UnrealNetwork.h"
 #include <HeistDayGameMode.h>
 
+AHeistDayPlayerState::AHeistDayPlayerState()
+{
+    FirstRound = FRoundData();
+    SecondRound = FRoundData();
+}
 void AHeistDayPlayerState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
     Super::GetLifetimeReplicatedProps(OutLifetimeProps);
@@ -10,6 +15,8 @@ void AHeistDayPlayerState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>&
     DOREPLIFETIME(AHeistDayPlayerState, PlayerIndex);
     DOREPLIFETIME(AHeistDayPlayerState, CurrentHealth);
     DOREPLIFETIME(AHeistDayPlayerState, EpicAccountName);
+    DOREPLIFETIME(AHeistDayPlayerState, FirstRound);
+    DOREPLIFETIME(AHeistDayPlayerState, SecondRound);
 }
 
 void AHeistDayPlayerState::SetCurrentHealth(int32 NewHealth)
@@ -27,7 +34,15 @@ void AHeistDayPlayerState::SetCurrentHealth(int32 NewHealth)
 
 void AHeistDayPlayerState::Server_SetEpicName_Implementation(const FString& NewName)
 {
-    EpicAccountName = NewName;
+    FString LocalName = NewName;
+
+    if (LocalName.IsEmpty())
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[Server] EOS name empty, setting default"));
+        LocalName = TEXT("Player");
+    }
+
+    EpicAccountName = LocalName;
 
     UE_LOG(LogTemp, Warning, TEXT("[Server] Nom EOS synchronisé pour le PlayerState : %s"), *EpicAccountName);
 }
@@ -90,4 +105,37 @@ void AHeistDayPlayerState::OnRep_CurrentHealth()
 
     if (CurrentHealth <= 0)
         OnPlayerDied.Broadcast();
+}
+void AHeistDayPlayerState::OnRep_StatsChanged()
+{
+    OnStatsChanged.Broadcast(this);
+}
+
+void AHeistDayPlayerState::AddKill(int32 RoundNumber)
+{
+    if (HasAuthority())
+    {
+        if (RoundNumber == 1)
+            FirstRound.KillsCount++;
+        else if (RoundNumber == 2)
+            SecondRound.KillsCount++;
+
+		UE_LOG(LogTemp, Warning, TEXT("[PlayerState] AddKill for Round %d. Total kills: %d"), RoundNumber, (RoundNumber == 1) ? FirstRound.KillsCount : SecondRound.KillsCount);
+
+        OnStatsChanged.Broadcast(this);
+    }
+}   
+void AHeistDayPlayerState::AddDeath(int32 RoundNumber)
+{
+    if (HasAuthority())
+    {
+        if (RoundNumber == 1)
+            FirstRound.DeathsCount++;
+        else if (RoundNumber == 2)
+            SecondRound.DeathsCount++;
+
+		UE_LOG(LogTemp, Warning, TEXT("[PlayerState] AddDeath for Round %d. Total deaths: %d"), RoundNumber, (RoundNumber == 1) ? FirstRound.DeathsCount : SecondRound.DeathsCount);
+
+        OnStatsChanged.Broadcast(this);
+    }
 }

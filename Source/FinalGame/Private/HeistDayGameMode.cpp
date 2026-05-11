@@ -70,13 +70,48 @@ bool AHeistDayGameMode::CheckAllThiefDead()
     return true;
 }
 
-void AHeistDayGameMode::HandlePlayerDamage(AController* Victim, float DamageAmount)
+void AHeistDayGameMode::HandlePlayerDamage(AController* Victim, AController* Attacker,float DamageAmount)
 {
-    AHeistDayPlayerState* PS = Victim->GetPlayerState<AHeistDayPlayerState>();
-    if (!PS) return;
+    AHeistDayPlayerState* VictimPS = Victim->GetPlayerState<AHeistDayPlayerState>();
+    AHeistDayPlayerState* AttackerPS = Attacker->GetPlayerState<AHeistDayPlayerState>();
+	AHeistDayGameState* GS = GetGameState<AHeistDayGameState>();
+    if (!VictimPS) return;
 
-    float NewHealth = PS->GetCurrentHealth() - DamageAmount;
-    PS->SetCurrentHealth(FMath::Max(0.f, NewHealth));
+    float NewHealth = VictimPS->GetCurrentHealth() - DamageAmount;
+    VictimPS->SetCurrentHealth(FMath::Max(0.f, NewHealth));
+
+    if (VictimPS->IsDead())
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[GameMode] %s has died!"), *Victim->GetName());
+
+        if (GS->MatchPhase == EMatchPhase::FirstRound)
+        {
+            VictimPS->AddDeath(1);
+            ;
+            if (AttackerPS)
+            {
+                AttackerPS->AddKill(1);
+            }
+            else
+            {
+                UE_LOG(LogTemp, Warning, TEXT("[GameMode] %s killed by environment or unknown source."), *Victim->GetName());
+            }
+        }
+        else if (GS->MatchPhase == EMatchPhase::SecondRound)
+        {
+            VictimPS->AddDeath(2);
+            ;
+            if (AttackerPS)
+            {
+                AttackerPS->AddKill(2);
+            }
+            else
+            {
+                UE_LOG(LogTemp, Warning, TEXT("[GameMode] %s killed by environment or unknown source."), *Victim->GetName());
+			}
+        }
+
+    }
 
     if (!CheckAllThiefDead())
     {
@@ -122,7 +157,7 @@ void AHeistDayGameMode::PostLogin(APlayerController* NewPlayer)
     }
 
     // 1. Déterminer l'ID d'équipe (1 ou 2)
-    int32 AssignedTeamId = (ConnectedCount % 2 != 0) ? 1 : 2;
+    int32 AssignedTeamId = (ConnectedCount % 2 != 0) ? 2 : 2;
     PS->SetTeamId(AssignedTeamId);
 
     // 2. Assigner l'équipe et l'index (Logique de base)
@@ -134,14 +169,14 @@ void AHeistDayGameMode::PostLogin(APlayerController* NewPlayer)
     }
     else
     {
-        PS->SetTeam(ETeam::Employee);
+        PS->SetTeam(ETeam::Thief);
         EmployeeCount++;
         PS->SetPlayerIndex(EmployeeCount);
     }
 
     FTeamData& TargetTeamData = (AssignedTeamId == 1)
-        ? CachedGameState->CurrentMatchData.Round1Data.FirstTeam
-        : CachedGameState->CurrentMatchData.Round1Data.SecondTeam;
+        ? CachedGameState->CurrentMatchData.FirstTeam
+        : CachedGameState->CurrentMatchData.SecondTeam;
 
     if (TargetTeamData.TeamId == 0)
     {
@@ -204,14 +239,13 @@ void AHeistDayGameMode::OnClientReady()
         if (CachedGameState)
         {
             CachedGameState->Server_SetMatchPhase(EMatchPhase::PreRound);
-            CachedGameState->Server_SetRemainingTime(12.0f);
         }
 
         FTimerHandle StartDelay;
         GetWorldTimerManager().SetTimer(StartDelay, [this]()
             {
                 StartRound(1); // Always first round
-            }, 12.0f, false);
+            }, 2.0f, false);
     }
 }
 

@@ -21,7 +21,7 @@ public:
     virtual void BeginPlay() override;
 
     UFUNCTION(BlueprintCallable)
-    void HandlePlayerDamage(AController* Victim, float DamageAmount);
+    void HandlePlayerDamage(AController* Victim, AController* Attacker, float DamageAmount);
 
     UFUNCTION(BlueprintCallable)
 	void HandleChangePlayerHealthValue(AController* Victim, int32 NewHealth); 

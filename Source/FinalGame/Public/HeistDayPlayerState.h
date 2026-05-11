@@ -11,8 +11,21 @@ enum class ETeam : uint8
     Employee UMETA(DisplayName = "Employee")
 };
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnPlayerDied);
+USTRUCT(BlueprintType)
+struct FRoundData
+{
+    GENERATED_BODY()
 
+    UPROPERTY(BlueprintReadOnly, Category = "Stats")
+	int32 KillsCount = 0;
+    UPROPERTY(BlueprintReadOnly, Category = "Stats")
+	int32 DeathsCount = 0;
+
+};
+
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnPlayerDied);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnStatsChanged, AHeistDayPlayerState*, PlayerState);
 
 UCLASS()
 class FINALGAME_API AHeistDayPlayerState : public APlayerState
@@ -20,8 +33,9 @@ class FINALGAME_API AHeistDayPlayerState : public APlayerState
     GENERATED_BODY()
 
 public:
-    static constexpr uint8 MaxHealth = 100;
+    AHeistDayPlayerState();
 
+    static constexpr uint8 MaxHealth = 100;
     UFUNCTION(BlueprintPure, Category = "Player")
     FString GetEpicAccountName() const { return EpicAccountName; }
 
@@ -31,8 +45,21 @@ public:
     UFUNCTION(BlueprintPure)
     ETeam GetTeam() const { return Team; }
 
+    UFUNCTION(BlueprintPure)
+	FRoundData GetFirstRoundData() const { return FirstRound; }
+
+    UFUNCTION(BlueprintPure)
+	FRoundData GetSecondRoundData() const { return SecondRound; }
+
 	UFUNCTION(BlueprintPure)
 	int32 GetPlayerIndex() const { return PlayerIndex; }
+
+
+    UPROPERTY(ReplicatedUsing = OnRep_StatsChanged, BlueprintReadOnly, Category = "Stats") 
+        FRoundData FirstRound;
+
+    UPROPERTY(ReplicatedUsing = OnRep_StatsChanged, BlueprintReadOnly, Category = "Stats") 
+        FRoundData SecondRound;
 
 	UFUNCTION(BlueprintPure)
 	int32 GetCurrentHealth() const { return CurrentHealth; }
@@ -43,13 +70,17 @@ public:
     UPROPERTY(BlueprintAssignable)
     FOnPlayerDied OnPlayerDied;
 
+    UPROPERTY(BlueprintAssignable, Category = "Events")
+    FOnStatsChanged OnStatsChanged;
+
     // Server setters, clients receive the updated value in OnRep
     void SetTeamId(int32 NewTeamId);
     void SetTeam(ETeam NewTeam);
     void SetPlayerIndex(int32 PlayerIndex);
     void SetCurrentHealth(int32 NewHealth);
     void SetEpicAccountName(const FString& InName) { EpicAccountName = InName; }
-
+    void AddKill(int32 RoundNumber);
+    void AddDeath(int32 RoundNumber);
     UPROPERTY(Replicated, BlueprintReadOnly, Category = "Player")
     FString EpicAccountName;
 
@@ -72,14 +103,14 @@ private:
     ETeam Team = ETeam::None;
 
 
-
     UFUNCTION()
     void OnRep_TeamId();
 
-
-
     UFUNCTION()
     void OnRep_CurrentHealth();
+
+    UFUNCTION()
+    void OnRep_StatsChanged();
 
     UFUNCTION()
     void OnRep_PlayerIndex();
