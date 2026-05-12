@@ -34,6 +34,7 @@ void AHeistDayGameState::Server_SetRemainingTime(float Seconds)
 
 void AHeistDayGameState::Server_SetMatchPhase(EMatchPhase NewPhase)
 {
+	UE_LOG(LogTemp, Warning, TEXT("[GameState] Server_SetMatchPhase called with new phase : %d"), static_cast<uint8>(NewPhase));
     MatchPhase = NewPhase;
 }
 

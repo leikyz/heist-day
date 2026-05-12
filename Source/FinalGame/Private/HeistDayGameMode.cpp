@@ -159,11 +159,9 @@ void AHeistDayGameMode::PostLogin(APlayerController* NewPlayer)
         return;
     }
 
-    // 1. Déterminer l'ID d'équipe (1 ou 2)
-    int32 AssignedTeamId = (ConnectedCount % 2 != 0) ? 2 : 2;
+    int32 AssignedTeamId = (ConnectedCount % 2 != 0) ? 1 : 2;
     PS->SetTeamId(AssignedTeamId);
 
-    // 2. Assigner l'équipe et l'index (Logique de base)
     if (AssignedTeamId == 1)
     {
         PS->SetTeam(ETeam::Thief);
@@ -172,7 +170,7 @@ void AHeistDayGameMode::PostLogin(APlayerController* NewPlayer)
     }
     else
     {
-        PS->SetTeam(ETeam::Thief);
+        PS->SetTeam(ETeam::Employee);
         EmployeeCount++;
         PS->SetPlayerIndex(EmployeeCount);
     }
@@ -264,35 +262,45 @@ void AHeistDayGameMode::OnRoundTimerExpired()
 
     switch (CachedGameState->GetMatchPhase())
     {
+
     case EMatchPhase::FirstRound:
     {
-        SwapAllTeamsRoles();
+
 
         CachedGameState->Server_SetMatchPhase(EMatchPhase::FirstRoundEnd);
+        CachedGameState->Server_SetRemainingTime(6.0f);
 
-        UE_LOG(LogTemp, Warning, TEXT("[GameMode] First round ended. Starting second round after delay."));
-
-	
-        FTimerHandle StartDelay;
-        GetWorldTimerManager().SetTimer(StartDelay, [this]()
+        FTimerHandle FirstRoundEndTimer;
+        GetWorldTimerManager().SetTimer(FirstRoundEndTimer, [this]()
             {
-                StartRound(2); // Always second round
-            }, 14.0f, false);
+                SwapAllTeamsRoles();
 
+                CachedGameState->Server_SetMatchPhase(EMatchPhase::SecondRoundStart); 
+                CachedGameState->Server_SetRemainingTime(15.0f);
+
+                FTimerHandle SecondRoundStartTimer;
+                GetWorldTimerManager().SetTimer(SecondRoundStartTimer, [this]()
+                    {
+                        StartRound(2);
+
+                    }, 15.0f, false);
+
+            }, 6.0f, false); 
         break;
     } 
-
     case EMatchPhase::SecondRound:
     {
         CachedGameState->Server_SetMatchPhase(EMatchPhase::SecondRoundEnd);
-
+        CachedGameState->Server_SetRemainingTime(6.0f);
         UE_LOG(LogTemp, Warning, TEXT("[GameMode] Second round ended. Match should end or restart after delay."));
+
+
 
         FTimerHandle StartDelay;
         GetWorldTimerManager().SetTimer(StartDelay, [this]()
             {
                 CachedGameState->Server_SetMatchPhase(EMatchPhase::MatchEnd);
-            }, 15.0f, false);
+            }, 6.0f, false);
 
         break;
     }
@@ -320,7 +328,6 @@ void AHeistDayGameMode::SwapAllTeamsRoles()
 
     UE_LOG(LogTemp, Warning, TEXT("[GameMode] SwapAllTeamsRoles: Début du changement de rôle."));
 
-    // Copie de la structure depuis le GameState
     FMatchData NewMatchData = CachedGameState->CurrentMatchData;
 
     auto SwapLogic = [](FTeamData& TeamData)
@@ -350,15 +357,12 @@ void AHeistDayGameMode::SwapAllTeamsRoles()
     SwapLogic(NewMatchData.FirstTeam);
     SwapLogic(NewMatchData.SecondTeam);
 
-    // Swap des compteurs internes du GameMode
     int32 TempCount = ThiefCount;
     ThiefCount = EmployeeCount;
     EmployeeCount = TempCount;
 
-    // Modification directe du struct dans le GameState (possible car GameMode est friend)
     CachedGameState->CurrentMatchData = NewMatchData;
 
-    // Broadcast local sur le serveur
     CachedGameState->OnTeamValueChanged.Broadcast(CachedGameState->CurrentMatchData.FirstTeam);
     CachedGameState->OnTeamValueChanged.Broadcast(CachedGameState->CurrentMatchData.SecondTeam);
 
