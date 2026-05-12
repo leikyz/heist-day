@@ -248,7 +248,7 @@ void AHeistDayGameMode::OnClientReady()
         GetWorldTimerManager().SetTimer(StartDelay, [this]()
             {
                 StartRound(1); // Always first round
-            }, 2.0f, false);
+            }, 14.0f, false);
     }
 }
 
@@ -277,7 +277,7 @@ void AHeistDayGameMode::OnRoundTimerExpired()
         GetWorldTimerManager().SetTimer(StartDelay, [this]()
             {
                 StartRound(2); // Always second round
-            }, 12.0f, false);
+            }, 14.0f, false);
 
         break;
     } 
