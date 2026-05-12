@@ -160,7 +160,7 @@ void AHeistDayGameMode::PostLogin(APlayerController* NewPlayer)
     }
 
     // 1. Déterminer l'ID d'équipe (1 ou 2)
-    int32 AssignedTeamId = (ConnectedCount % 2 != 0) ? 1 : 2;
+    int32 AssignedTeamId = (ConnectedCount % 2 != 0) ? 2 : 2;
     PS->SetTeamId(AssignedTeamId);
 
     // 2. Assigner l'équipe et l'index (Logique de base)
@@ -172,7 +172,7 @@ void AHeistDayGameMode::PostLogin(APlayerController* NewPlayer)
     }
     else
     {
-        PS->SetTeam(ETeam::Employee);
+        PS->SetTeam(ETeam::Thief);
         EmployeeCount++;
         PS->SetPlayerIndex(EmployeeCount);
     }
