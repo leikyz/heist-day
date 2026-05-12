@@ -160,7 +160,7 @@ void AHeistDayGameMode::PostLogin(APlayerController* NewPlayer)
     }
 
     // 1. Déterminer l'ID d'équipe (1 ou 2)
-    int32 AssignedTeamId = (ConnectedCount % 2 != 0) ? 2 : 2;
+    int32 AssignedTeamId = (ConnectedCount % 2 != 0) ? 1 : 2;
     PS->SetTeamId(AssignedTeamId);
 
     // 2. Assigner l'équipe et l'index (Logique de base)
@@ -290,5 +290,27 @@ void AHeistDayGameMode::OnRoundTimerExpired()
 
     default:
         break;
+    }
+}
+
+void AHeistDayGameMode::AwardThiefScore(int32 TeamId, int32 ScoreToAdd)
+{
+    FTeamData* ModifiedTeam = nullptr;
+
+    if (CachedGameState)
+    {
+        CachedGameState->Server_SetThiefScore(TeamId, ScoreToAdd);
+        UE_LOG(LogTemp, Warning, TEXT("[GameMode] L'arbitre a accordé %d points Thief à la team %d"), ScoreToAdd, TeamId);
+    }
+}
+
+void AHeistDayGameMode::AwardEmployeeScore(int32 TeamId, int32 ScoreToAdd)
+{
+    FTeamData* ModifiedTeam = nullptr;
+
+    if (CachedGameState)
+    {
+        CachedGameState->Server_SetEmployeeScore(TeamId, ScoreToAdd);
+        UE_LOG(LogTemp, Warning, TEXT("[GameMode] L'arbitre a accordé %d points Thief à la team %d"), ScoreToAdd, TeamId);
     }
 }

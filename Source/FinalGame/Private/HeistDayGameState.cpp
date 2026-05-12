@@ -41,10 +41,68 @@ void AHeistDayGameState::OnRep_MatchPhase()
 {
     OnMatchPhaseChanged.Broadcast(MatchPhase);
 }
-
-
 void AHeistDayGameState::OnRep_RemainingTime()
 {
     OnRemainingTimeChanged.Broadcast(RemainingTime);
+}
 
+void AHeistDayGameState::OnRep_CurrentMatchData()
+{
+    UE_LOG(LogTemp, Warning, TEXT("[GameState] OnRep_CurrentMatchData called on Client."));
+
+    OnTeamValueChanged.Broadcast(CurrentMatchData.FirstTeam);
+    OnTeamValueChanged.Broadcast(CurrentMatchData.SecondTeam);
+}
+FTeamData AHeistDayGameState::GetTeamDataById(int32 TeamId) const
+{
+    if (CurrentMatchData.FirstTeam.TeamId == TeamId)
+    {
+        return CurrentMatchData.FirstTeam;
+    }
+
+    if (CurrentMatchData.SecondTeam.TeamId == TeamId)
+    {
+        return CurrentMatchData.SecondTeam;
+    }
+
+    return FTeamData();
+}
+FTeamData AHeistDayGameState::GetOpposingTeamDataById(int32 TeamId) const
+{
+    if (CurrentMatchData.FirstTeam.TeamId == TeamId)
+    {
+        return CurrentMatchData.SecondTeam;
+    }
+
+    if (CurrentMatchData.SecondTeam.TeamId == TeamId)
+    {
+        return CurrentMatchData.FirstTeam;
+    }
+
+    return FTeamData();
+}
+
+
+void AHeistDayGameState::Server_SetThiefScore(int32 TeamId, int32 ScoreToAdd)
+{
+    FTeamData* ModifiedTeam = (CurrentMatchData.FirstTeam.TeamId == TeamId) ? &CurrentMatchData.FirstTeam :
+        (CurrentMatchData.SecondTeam.TeamId == TeamId) ? &CurrentMatchData.SecondTeam : nullptr;
+
+    if (ModifiedTeam != nullptr)
+    {
+        ModifiedTeam->ThiefScore += ScoreToAdd;
+        OnTeamValueChanged.Broadcast(*ModifiedTeam);
+    }
+}
+
+void AHeistDayGameState::Server_SetEmployeeScore(int32 TeamId, int32 ScoreToAdd)
+{
+    FTeamData* ModifiedTeam = (CurrentMatchData.FirstTeam.TeamId == TeamId) ? &CurrentMatchData.FirstTeam :
+        (CurrentMatchData.SecondTeam.TeamId == TeamId) ? &CurrentMatchData.SecondTeam : nullptr;
+
+    if (ModifiedTeam != nullptr)
+    {
+        ModifiedTeam->EmployeeScore += ScoreToAdd;
+        OnTeamValueChanged.Broadcast(*ModifiedTeam);
+    }
 }

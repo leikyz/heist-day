@@ -26,6 +26,12 @@ public:
     UFUNCTION(BlueprintCallable)
 	void HandleChangePlayerHealthValue(AController* Victim, int32 NewHealth); 
 
+    UFUNCTION(BlueprintCallable, Category = "Match|Score")
+    void AwardThiefScore(int32 TeamId, int32 ScoreToAdd);
+
+    UFUNCTION(BlueprintCallable, Category = "Match|Score")
+    void AwardEmployeeScore(int32 TeamId, int32 ScoreToAdd);
+
     void OnClientReady();
 
 
