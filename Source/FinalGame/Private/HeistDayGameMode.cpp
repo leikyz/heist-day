@@ -172,7 +172,7 @@ void AHeistDayGameMode::PostLogin(APlayerController* NewPlayer)
     }
     else
     {
-        PS->SetTeam(ETeam::Thief);
+        PS->SetTeam(ETeam::Employee);
         EmployeeCount++;
         PS->SetPlayerIndex(EmployeeCount);
     }
@@ -241,14 +241,14 @@ void AHeistDayGameMode::OnClientReady()
 
         if (CachedGameState)
         {
-            CachedGameState->Server_SetMatchPhase(EMatchPhase::PreRound);
+            CachedGameState->Server_SetMatchPhase(EMatchPhase::FirstRoundStart);
         }
 
         FTimerHandle StartDelay;
         GetWorldTimerManager().SetTimer(StartDelay, [this]()
             {
                 StartRound(1); // Always first round
-            }, 2.0f, false);
+            }, 12.0f, false);
     }
 }
 
@@ -266,15 +266,18 @@ void AHeistDayGameMode::OnRoundTimerExpired()
     {
     case EMatchPhase::FirstRound:
     {
+        SwapAllTeamsRoles();
+
         CachedGameState->Server_SetMatchPhase(EMatchPhase::FirstRoundEnd);
 
         UE_LOG(LogTemp, Warning, TEXT("[GameMode] First round ended. Starting second round after delay."));
 
+	
         FTimerHandle StartDelay;
         GetWorldTimerManager().SetTimer(StartDelay, [this]()
             {
                 StartRound(2); // Always second round
-            }, 12.0f, false);
+            }, 14.0f, false);
 
         break;
     } 
@@ -284,6 +287,12 @@ void AHeistDayGameMode::OnRoundTimerExpired()
         CachedGameState->Server_SetMatchPhase(EMatchPhase::SecondRoundEnd);
 
         UE_LOG(LogTemp, Warning, TEXT("[GameMode] Second round ended. Match should end or restart after delay."));
+
+        FTimerHandle StartDelay;
+        GetWorldTimerManager().SetTimer(StartDelay, [this]()
+            {
+                CachedGameState->Server_SetMatchPhase(EMatchPhase::MatchEnd);
+            }, 15.0f, false);
 
         break;
     }
@@ -301,9 +310,60 @@ void AHeistDayGameMode::AwardThiefScore(int32 TeamId, int32 ScoreToAdd)
     {
         CachedGameState->Server_SetThiefScore(TeamId, ScoreToAdd);
         UE_LOG(LogTemp, Warning, TEXT("[GameMode] L'arbitre a accordé %d points Thief à la team %d"), ScoreToAdd, TeamId);
+
+        AwardEmployeeScore(CachedGameState->GetOpposingTeamDataById(TeamId).TeamId, ScoreToAdd);
     }
 }
+void AHeistDayGameMode::SwapAllTeamsRoles()
+{
+    if (!CachedGameState) return;
 
+    UE_LOG(LogTemp, Warning, TEXT("[GameMode] SwapAllTeamsRoles: Début du changement de rôle."));
+
+    // Copie de la structure depuis le GameState
+    FMatchData NewMatchData = CachedGameState->CurrentMatchData;
+
+    auto SwapLogic = [](FTeamData& TeamData)
+        {
+            FString OldRoleStr = (TeamData.Team == ETeam::Thief) ? TEXT("Thief") : TEXT("Employee");
+
+            TeamData.Team = (TeamData.Team == ETeam::Thief) ? ETeam::Employee : ETeam::Thief;
+
+            FString NewRoleStr = (TeamData.Team == ETeam::Thief) ? TEXT("Thief") : TEXT("Employee");
+
+            UE_LOG(LogTemp, Warning, TEXT("[GameMode] Team %d Swap: %s -> %s"), TeamData.TeamId, *OldRoleStr, *NewRoleStr);
+
+            int32 PlayerCount = 0;
+            for (AHeistDayPlayerState* PS : TeamData.Players)
+            {
+                if (IsValid(PS))
+                {
+                    PS->SetTeam(TeamData.Team);
+                    PlayerCount++;
+                    UE_LOG(LogTemp, Log, TEXT("[GameMode] PlayerState %s mis à jour avec le rôle %s"), *PS->GetName(), *NewRoleStr);
+                }
+            }
+
+            UE_LOG(LogTemp, Log, TEXT("[GameMode] %d joueurs mis à jour pour la Team %d"), PlayerCount, TeamData.TeamId);
+        };
+
+    SwapLogic(NewMatchData.FirstTeam);
+    SwapLogic(NewMatchData.SecondTeam);
+
+    // Swap des compteurs internes du GameMode
+    int32 TempCount = ThiefCount;
+    ThiefCount = EmployeeCount;
+    EmployeeCount = TempCount;
+
+    // Modification directe du struct dans le GameState (possible car GameMode est friend)
+    CachedGameState->CurrentMatchData = NewMatchData;
+
+    // Broadcast local sur le serveur
+    CachedGameState->OnTeamValueChanged.Broadcast(CachedGameState->CurrentMatchData.FirstTeam);
+    CachedGameState->OnTeamValueChanged.Broadcast(CachedGameState->CurrentMatchData.SecondTeam);
+
+    UE_LOG(LogTemp, Warning, TEXT("[GameMode] SwapAllTeamsRoles: Terminé et broadcasté localement."));
+}
 void AHeistDayGameMode::AwardEmployeeScore(int32 TeamId, int32 ScoreToAdd)
 {
     FTeamData* ModifiedTeam = nullptr;

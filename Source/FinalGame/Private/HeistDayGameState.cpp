@@ -41,6 +41,7 @@ void AHeistDayGameState::OnRep_MatchPhase()
 {
     OnMatchPhaseChanged.Broadcast(MatchPhase);
 }
+
 void AHeistDayGameState::OnRep_RemainingTime()
 {
     OnRemainingTimeChanged.Broadcast(RemainingTime);
@@ -53,6 +54,7 @@ void AHeistDayGameState::OnRep_CurrentMatchData()
     OnTeamValueChanged.Broadcast(CurrentMatchData.FirstTeam);
     OnTeamValueChanged.Broadcast(CurrentMatchData.SecondTeam);
 }
+
 FTeamData AHeistDayGameState::GetTeamDataById(int32 TeamId) const
 {
     if (CurrentMatchData.FirstTeam.TeamId == TeamId)
@@ -67,6 +69,7 @@ FTeamData AHeistDayGameState::GetTeamDataById(int32 TeamId) const
 
     return FTeamData();
 }
+
 FTeamData AHeistDayGameState::GetOpposingTeamDataById(int32 TeamId) const
 {
     if (CurrentMatchData.FirstTeam.TeamId == TeamId)
@@ -81,7 +84,6 @@ FTeamData AHeistDayGameState::GetOpposingTeamDataById(int32 TeamId) const
 
     return FTeamData();
 }
-
 
 void AHeistDayGameState::Server_SetThiefScore(int32 TeamId, int32 ScoreToAdd)
 {
@@ -102,7 +104,7 @@ void AHeistDayGameState::Server_SetEmployeeScore(int32 TeamId, int32 ScoreToAdd)
 
     if (ModifiedTeam != nullptr)
     {
-        ModifiedTeam->EmployeeScore += ScoreToAdd;
+        ModifiedTeam->EmployeeScore -= ScoreToAdd;
         OnTeamValueChanged.Broadcast(*ModifiedTeam);
     }
 }

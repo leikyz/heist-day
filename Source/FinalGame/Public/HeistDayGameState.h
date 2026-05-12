@@ -1,4 +1,5 @@
 #pragma once
+
 #include "CoreMinimal.h"
 #include "GameFramework/GameState.h"
 #include "HeistDayPlayerState.h"
@@ -8,9 +9,10 @@ UENUM(BlueprintType)
 enum class EMatchPhase : uint8
 {
     WaitingForPlayers,
-    PreRound,
+    FirstRoundStart,
     FirstRound,
     FirstRoundEnd,
+    SecondRoundStart,
     SecondRound,
     SecondRoundEnd,
     MatchEnd
@@ -48,9 +50,8 @@ struct FMatchData
     UPROPERTY(BlueprintReadOnly)
     FTeamData SecondTeam;
 
-	FTeamData MatchWinnerTeam;
+    FTeamData MatchWinnerTeam;
 };
-
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnMatchPhaseChanged, EMatchPhase, NewPhase);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnRemainingTimeChanged, float, RemainingSeconds);
@@ -85,6 +86,7 @@ public:
 
     UFUNCTION(BlueprintPure)
     EMatchPhase GetMatchPhase() const { return MatchPhase; }
+
     // Events
     UPROPERTY(BlueprintAssignable)
     FOnMatchPhaseChanged OnMatchPhaseChanged;

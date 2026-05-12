@@ -39,7 +39,7 @@ public:
 
 protected:
     UPROPERTY(EditDefaultsOnly, Category = "Round")
-    float RoundDuration = 20.f;
+    float RoundDuration = 10.f;
 
     UPROPERTY(EditDefaultsOnly, Category = "Round")
     int32 ExpectedPlayerCount = 2;
@@ -51,6 +51,8 @@ private:
     void OnRoundTimerExpired();
 
 	bool CheckAllThiefDead();
+
+    void SwapAllTeamsRoles();
 
     UPROPERTY()
     AHeistDayGameState* CachedGameState = nullptr;
