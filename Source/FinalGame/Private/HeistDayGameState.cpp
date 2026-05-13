@@ -17,6 +17,8 @@ void AHeistDayGameState::GetLifetimeReplicatedProps(
     DOREPLIFETIME(AHeistDayGameState, CurrentMatchData);
 }
 
+
+
 void AHeistDayGameState::Tick(float DeltaSeconds)
 {
     Super::Tick(DeltaSeconds);
@@ -118,6 +120,27 @@ bool AHeistDayGameState::GetMatchWinner(FTeamData& OutWinner)
     UE_LOG(LogTemp, Warning, TEXT("[GameMode] Match Draw at %d"), FirstTeam.ThiefScore);
     return false;
 }
+
+bool AHeistDayGameState::GetMatchLooser(FTeamData& OutLooser)
+{
+    const FTeamData& FirstTeam = CurrentMatchData.FirstTeam;
+    const FTeamData& SecondTeam = CurrentMatchData.SecondTeam;
+    if (FirstTeam.ThiefScore < SecondTeam.ThiefScore)
+    {
+        UE_LOG(LogTemp, Log, TEXT("[GameMode] Looser: Team %d"), FirstTeam.TeamId);
+        OutLooser = FirstTeam;
+        return true;
+    }
+    else if (SecondTeam.ThiefScore < FirstTeam.ThiefScore)
+    {
+        UE_LOG(LogTemp, Log, TEXT("[GameMode] Looser: Team %d"), SecondTeam.TeamId);
+        OutLooser = SecondTeam;
+        return true;
+    }
+    UE_LOG(LogTemp, Warning, TEXT("[GameMode] Match Draw at %d"), FirstTeam.ThiefScore);
+    return false;
+}
+
 void AHeistDayGameState::Server_SetEmployeeScore(int32 TeamId, int32 ScoreToAdd)
 {
     FTeamData* ModifiedTeam = (CurrentMatchData.FirstTeam.TeamId == TeamId) ? &CurrentMatchData.FirstTeam :

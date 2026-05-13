@@ -3,6 +3,7 @@
 #include "HeistDayPlayerState.h"
 #include "HeistDayGameState.h"
 #include "EngineUtils.h"
+#include "GameFramework/CharacterMovementComponent.h"
 
 void AHeistDayGameMode::BeginPlay()
 {
@@ -125,7 +126,7 @@ void AHeistDayGameMode::HandlePlayerDamage(AController* Victim, AController* Att
     {
         UE_LOG(LogTemp, Warning, TEXT("[GameMode] All thiefs are dead, round should end."));
         GetWorldTimerManager().ClearTimer(RoundTimerHandle);
-        // Handle end of round logic here (e.g., declare winner, reset level, etc.)
+        // Handle end of round logic here
     }
 }
 
@@ -249,6 +250,46 @@ void AHeistDayGameMode::OnClientReady()
             }, 14.0f, false);
     }
 }
+void AHeistDayGameMode::ResetAllPlayersHealth()
+{
+    if (!CachedGameState) return;
+
+    for (APlayerState* PS : CachedGameState->PlayerArray)
+    {
+        AHeistDayPlayerState* HeistPS = Cast<AHeistDayPlayerState>(PS);
+        if (HeistPS)
+        {
+            HeistPS->SetCurrentHealth(AHeistDayPlayerState::MaxHealth);
+
+            UE_LOG(LogTemp, Log, TEXT("[GameMode] Santé réinitialisée pour : %s"), *HeistPS->GetPlayerName());
+        }
+    }
+}
+
+void AHeistDayGameMode::TeleportPlayersToNewSpawns()
+{
+    for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+    {
+        APlayerController* PC = It->Get();
+        if (PC && PC->GetPawn())
+        {
+            AActor* NewStart = ChoosePlayerStart(PC);
+
+            if (NewStart)
+            {
+                FVector SpawnLocation = NewStart->GetActorLocation();
+                FRotator SpawnRotation = NewStart->GetActorRotation();
+
+                PC->GetPawn()->TeleportTo(SpawnLocation, SpawnRotation);
+
+                if (auto* Movement = PC->GetPawn()->FindComponentByClass<UCharacterMovementComponent>())
+                {
+                    Movement->StopMovementImmediately();
+                }
+            }
+        }
+    }
+}
 
 void AHeistDayGameMode::OnRoundTimerExpired()
 {
@@ -274,6 +315,10 @@ void AHeistDayGameMode::OnRoundTimerExpired()
         GetWorldTimerManager().SetTimer(FirstRoundEndTimer, [this]()
             {
                 SwapAllTeamsRoles();
+             
+                TeleportPlayersToNewSpawns();
+
+                ResetAllPlayersHealth();
 
                 CachedGameState->Server_SetMatchPhase(EMatchPhase::SecondRoundStart); 
                 CachedGameState->Server_SetRemainingTime(15.0f);

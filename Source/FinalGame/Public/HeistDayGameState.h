@@ -108,6 +108,10 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Match")
     bool GetMatchWinner(FTeamData& OutWinner);
 
+
+    UFUNCTION(BlueprintCallable, Category = "Match")
+    bool GetMatchLooser(FTeamData& OutLooser);
+
 private:
     UPROPERTY(ReplicatedUsing = OnRep_RemainingTime)
     float RemainingTime = 0.f;

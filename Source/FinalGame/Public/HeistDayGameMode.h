@@ -57,6 +57,10 @@ private:
 
     void SwapAllTeamsRoles();
 
+    void ResetAllPlayersHealth();
+
+    void TeleportPlayersToNewSpawns();
+
     UPROPERTY()
     AHeistDayGameState* CachedGameState = nullptr;
 
