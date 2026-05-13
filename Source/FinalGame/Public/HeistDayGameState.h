@@ -81,6 +81,7 @@ public:
     UFUNCTION(BlueprintPure)
     float GetRemainingTime() const { return RemainingTime; }
 
+
     UFUNCTION(BlueprintPure, Category = "Match")
     FMatchData GetCurrentMatchData() const { return CurrentMatchData; }
 
@@ -102,6 +103,10 @@ public:
 
     UFUNCTION(BlueprintPure, Category = "Match")
     FTeamData GetOpposingTeamDataById(int32 TeamId) const;
+
+
+    UFUNCTION(BlueprintCallable, Category = "Match")
+    bool GetMatchWinner(FTeamData& OutWinner);
 
 private:
     UPROPERTY(ReplicatedUsing = OnRep_RemainingTime)

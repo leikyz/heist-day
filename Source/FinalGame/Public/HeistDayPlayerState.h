@@ -21,6 +21,12 @@ struct FRoundData
     UPROPERTY(BlueprintReadOnly, Category = "Stats")
 	int32 DeathsCount = 0;
 
+    UPROPERTY(BlueprintReadOnly, Category = "Stats")
+	int32 InterceptionsCount = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Stats")
+	int32 robbedCount = 0;
+
 };
 
 
@@ -38,6 +44,18 @@ public:
     static constexpr uint8 MaxHealth = 100;
     UFUNCTION(BlueprintPure, Category = "Player")
     FString GetEpicAccountName() const { return EpicAccountName; }
+
+    UFUNCTION(BlueprintPure, Category = "Player")
+	int32 GetDeathsCount() const { return FirstRound.DeathsCount + SecondRound.DeathsCount; }
+
+    UFUNCTION(BlueprintPure, Category = "Player")
+	int32 GetKillsCount() const { return FirstRound.KillsCount + SecondRound.KillsCount; }
+
+    UFUNCTION(BlueprintPure, Category = "Player")
+	int32 GetInterceptionsCount() const { return FirstRound.InterceptionsCount + SecondRound.InterceptionsCount; }
+
+    UFUNCTION(BlueprintPure, Category = "Player")
+	int32 GetRobbedCount() const { return FirstRound.robbedCount + SecondRound.robbedCount; }
 
     UFUNCTION(BlueprintPure)
     int32 GetTeamId() const { return TeamId; }
