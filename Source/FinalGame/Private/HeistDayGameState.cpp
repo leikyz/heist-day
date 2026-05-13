@@ -97,7 +97,27 @@ void AHeistDayGameState::Server_SetThiefScore(int32 TeamId, int32 ScoreToAdd)
         OnTeamValueChanged.Broadcast(*ModifiedTeam);
     }
 }
+bool AHeistDayGameState::GetMatchWinner(FTeamData& OutWinner)
+{
+	const FTeamData& FirstTeam = CurrentMatchData.FirstTeam;
+    const FTeamData& SecondTeam = CurrentMatchData.SecondTeam;
 
+    if (FirstTeam.ThiefScore > SecondTeam.ThiefScore)
+    {
+        UE_LOG(LogTemp, Log, TEXT("[GameMode] Winner: Team %d"), FirstTeam.TeamId);
+        OutWinner = FirstTeam;
+        return true;
+    }
+    else if (SecondTeam.ThiefScore > FirstTeam.ThiefScore)
+    {
+        UE_LOG(LogTemp, Log, TEXT("[GameMode] Winner: Team %d"), SecondTeam.TeamId);
+        OutWinner = SecondTeam;
+        return true;
+    }
+
+    UE_LOG(LogTemp, Warning, TEXT("[GameMode] Match Draw at %d"), FirstTeam.ThiefScore);
+    return false;
+}
 void AHeistDayGameState::Server_SetEmployeeScore(int32 TeamId, int32 ScoreToAdd)
 {
     FTeamData* ModifiedTeam = (CurrentMatchData.FirstTeam.TeamId == TeamId) ? &CurrentMatchData.FirstTeam :

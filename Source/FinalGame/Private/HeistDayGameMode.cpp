@@ -294,8 +294,6 @@ void AHeistDayGameMode::OnRoundTimerExpired()
         CachedGameState->Server_SetRemainingTime(6.0f);
         UE_LOG(LogTemp, Warning, TEXT("[GameMode] Second round ended. Match should end or restart after delay."));
 
-
-
         FTimerHandle StartDelay;
         GetWorldTimerManager().SetTimer(StartDelay, [this]()
             {
@@ -378,3 +376,4 @@ void AHeistDayGameMode::AwardEmployeeScore(int32 TeamId, int32 ScoreToAdd)
         UE_LOG(LogTemp, Warning, TEXT("[GameMode] L'arbitre a accordé %d points Thief à la team %d"), ScoreToAdd, TeamId);
     }
 }
+
