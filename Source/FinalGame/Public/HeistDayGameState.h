@@ -81,6 +81,8 @@ public:
     UFUNCTION(BlueprintPure)
     float GetRemainingTime() const { return RemainingTime; }
 
+    UFUNCTION(BlueprintCallable, Category = "Match|Respawn")
+    FTransform GetPlayerRespawnTransform(AController* Player);
 
     UFUNCTION(BlueprintPure, Category = "Match")
     FMatchData GetCurrentMatchData() const { return CurrentMatchData; }

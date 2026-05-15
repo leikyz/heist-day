@@ -4,6 +4,7 @@
 #include "HeistDayGameState.h"
 #include "EngineUtils.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include <Network/Client/EOSMatchmakingSubsystem.h>
 
 void AHeistDayGameMode::BeginPlay()
 {
@@ -117,17 +118,17 @@ void AHeistDayGameMode::HandlePlayerDamage(AController* Victim, AController* Att
 
     }
 
-    if (!CheckAllThiefDead())
-    {
-        UE_LOG(LogTemp, Warning, TEXT("[GameMode] Thiefs are still alive, round continues."));
+    //if (!CheckAllThiefDead())
+    //{
+    //    UE_LOG(LogTemp, Warning, TEXT("[GameMode] Thiefs are still alive, round continues."));
 
-    }
-    else
-    {
-        UE_LOG(LogTemp, Warning, TEXT("[GameMode] All thiefs are dead, round should end."));
-        GetWorldTimerManager().ClearTimer(RoundTimerHandle);
-        // Handle end of round logic here
-    }
+    //}
+    //else
+    //{
+    //    UE_LOG(LogTemp, Warning, TEXT("[GameMode] All thiefs are dead, round should end."));
+    //    GetWorldTimerManager().ClearTimer(RoundTimerHandle);
+    //    // Handle end of round logic here
+    //}
 }
 
 void AHeistDayGameMode::HandleChangePlayerHealthValue(AController* Victim, int32 NewHealth)
@@ -156,11 +157,27 @@ void AHeistDayGameMode::PostLogin(APlayerController* NewPlayer)
     AHeistDayPlayerState* PS = NewPlayer->GetPlayerState<AHeistDayPlayerState>();
     if (!PS || !CachedGameState)
     {
-        Super::PostLogin(NewPlayer);
+        Super::PostLogin(NewPlayer); 
         return;
     }
-
     int32 AssignedTeamId = (ConnectedCount % 2 != 0) ? 1 : 2;
+
+   /* UGameInstance* GI = GetGameInstance();
+    if (GI)
+    {
+        UEOSMatchmakingSubsystem* MatchmakingSubsystem = GI->GetSubsystem<UEOSMatchmakingSubsystem>();
+
+        if (MatchmakingSubsystem)
+        {
+            if (MatchmakingSubsystem->PendingTeamID != -1)
+                AssignedTeamId = MatchmakingSubsystem->PendingTeamID;
+        }
+        else
+        {
+            UE_LOG(LogTemp, Warning, TEXT("[GameMode] EOSMatchmakingSubsystem not found, using default team assignment."));
+        }
+    }*/
+
     PS->SetTeamId(AssignedTeamId);
 
     if (AssignedTeamId == 1)
@@ -191,15 +208,6 @@ void AHeistDayGameMode::PostLogin(APlayerController* NewPlayer)
     UE_LOG(LogTemp, Warning, TEXT("[GameMode] Joueur %s ajouté à la structure MatchData de la Team %d"), *PS->GetPlayerName(), AssignedTeamId);
 
     Super::PostLogin(NewPlayer);
-
-  /*  if (ConnectedCount >= ExpectedPlayerCount)
-    {
-        CachedGameState->Server_SetMatchPhase(EMatchPhase::PreRound);
-        CachedGameState->Server_SetRemainingTime(12.0f);
-
-        FTimerHandle StartDelay;
-        GetWorldTimerManager().SetTimer(StartDelay, [this]() { StartRound(1); }, 12.0f, false);
-    }*/
 }
 void AHeistDayGameMode::StartRound(int roundNumber)
 {
@@ -247,7 +255,7 @@ void AHeistDayGameMode::OnClientReady()
         GetWorldTimerManager().SetTimer(StartDelay, [this]()
             {
                 StartRound(1); // Always first round
-            }, 3.0f, false);
+            }, 14.0f, false);
     }
 }
 void AHeistDayGameMode::ResetAllPlayersHealth()
@@ -281,6 +289,8 @@ void AHeistDayGameMode::TeleportPlayersToNewSpawns()
                 FRotator SpawnRotation = NewStart->GetActorRotation();
 
                 PC->GetPawn()->TeleportTo(SpawnLocation, SpawnRotation);
+
+                PC->StartSpot = NewStart;
 
                 if (auto* Movement = PC->GetPawn()->FindComponentByClass<UCharacterMovementComponent>())
                 {
@@ -321,14 +331,14 @@ void AHeistDayGameMode::OnRoundTimerExpired()
                 ResetAllPlayersHealth();
 
                 CachedGameState->Server_SetMatchPhase(EMatchPhase::SecondRoundStart); 
-                CachedGameState->Server_SetRemainingTime(15.0f);
+                CachedGameState->Server_SetRemainingTime(14.0f);
 
                 FTimerHandle SecondRoundStartTimer;
                 GetWorldTimerManager().SetTimer(SecondRoundStartTimer, [this]()
                     {
                         StartRound(2);
 
-                    }, 15.0f, false);
+                    }, 14.0f, false);
 
             }, 6.0f, false); 
         break;

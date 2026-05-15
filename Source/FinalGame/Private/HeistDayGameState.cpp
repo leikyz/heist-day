@@ -99,6 +99,24 @@ void AHeistDayGameState::Server_SetThiefScore(int32 TeamId, int32 ScoreToAdd)
         OnTeamValueChanged.Broadcast(*ModifiedTeam);
     }
 }
+
+FTransform AHeistDayGameState::GetPlayerRespawnTransform(AController* Player)
+{
+    if (Player && Player->StartSpot.IsValid())
+    {
+        return Player->StartSpot->GetActorTransform();
+    }
+
+
+    if (Player && Player->GetPawn())
+    {
+        UE_LOG(LogTemp, Error, TEXT("[GetPlayerRespawnTransform] StartSpot introuvable pour %s !"), *Player->GetName());
+        return Player->GetPawn()->GetActorTransform();
+    }
+
+    return FTransform::Identity;
+}
+
 bool AHeistDayGameState::GetMatchWinner(FTeamData& OutWinner)
 {
 	const FTeamData& FirstTeam = CurrentMatchData.FirstTeam;
