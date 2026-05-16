@@ -10,6 +10,8 @@ void AHeistDayGameMode::BeginPlay()
 {
     Super::BeginPlay();
     CachedGameState = GetGameState<AHeistDayGameState>();
+
+    SaveCarryablesInitialState();
 }
 
 AActor* AHeistDayGameMode::ChoosePlayerStart_Implementation(AController* Player)
@@ -288,7 +290,7 @@ void AHeistDayGameMode::TeleportPlayersToNewSpawns()
                 FVector SpawnLocation = NewStart->GetActorLocation();
                 FRotator SpawnRotation = NewStart->GetActorRotation();
 
-                PC->GetPawn()->TeleportTo(SpawnLocation, SpawnRotation);
+                PC->GetPawn()->SetActorLocationAndRotation(SpawnLocation, SpawnRotation, false, nullptr, ETeleportType::TeleportPhysics);
 
                 PC->StartSpot = NewStart;
 
@@ -329,6 +331,8 @@ void AHeistDayGameMode::OnRoundTimerExpired()
                 TeleportPlayersToNewSpawns();
 
                 ResetAllPlayersHealth();
+
+                ResetCarryables();
 
                 CachedGameState->Server_SetMatchPhase(EMatchPhase::SecondRoundStart); 
                 CachedGameState->Server_SetRemainingTime(14.0f);
@@ -430,5 +434,58 @@ void AHeistDayGameMode::AwardEmployeeScore(int32 TeamId, int32 ScoreToAdd)
         CachedGameState->Server_SetEmployeeScore(TeamId, ScoreToAdd);
         UE_LOG(LogTemp, Warning, TEXT("[GameMode] L'arbitre a accordé %d points Thief à la team %d"), ScoreToAdd, TeamId);
     }
+}
+
+void AHeistDayGameMode::SaveCarryablesInitialState()
+{
+    InitialCarryablesData.Empty();
+
+    if (!CarryableBaseClass)
+    {
+        UE_LOG(LogTemp, Error, TEXT("[GameMode] CarryableBaseClass n'est pas assigné ! Mets BP_CarryableBase dans le Blueprint du GameMode."));
+        return;
+    }
+
+    for (TActorIterator<AActor> It(GetWorld(), CarryableBaseClass); It; ++It)
+    {
+        AActor* Item = *It;
+        if (Item)
+        {
+            FCarryableSpawnData Data;
+            Data.CarryableClass = Item->GetClass();
+            Data.InitialTransform = Item->GetActorTransform();
+
+            InitialCarryablesData.Add(Data);
+        }
+    }
+
+    UE_LOG(LogTemp, Warning, TEXT("[GameMode] %d objets collectables sauvegardés au démarrage."), InitialCarryablesData.Num());
+}
+
+void AHeistDayGameMode::ResetCarryables()
+{
+    if (!CarryableBaseClass) return;
+
+    for (TActorIterator<AActor> It(GetWorld(), CarryableBaseClass); It; ++It)
+    {
+        AActor* Item = *It;
+        if (Item)
+        {
+            Item->Destroy();
+        }
+    }
+
+    FActorSpawnParameters SpawnParams;
+    SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+    for (const FCarryableSpawnData& Data : InitialCarryablesData)
+    {
+        if (Data.CarryableClass)
+        {
+            GetWorld()->SpawnActor<AActor>(Data.CarryableClass, Data.InitialTransform, SpawnParams);
+        }
+    }
+
+    UE_LOG(LogTemp, Warning, TEXT("[GameMode] %d objets collectables réinitialisés !"), InitialCarryablesData.Num());
 }
 

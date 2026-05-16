@@ -7,6 +7,18 @@
 #include "EngineUtils.h"
 #include "HeistDayGameMode.generated.h"
 
+USTRUCT(BlueprintType)
+struct FCarryableSpawnData
+{
+    GENERATED_BODY()
+
+    UPROPERTY()
+    TSubclassOf<AActor> CarryableClass;
+
+    UPROPERTY()
+    FTransform InitialTransform;
+};
+
 UCLASS()
 class FINALGAME_API  AHeistDayGameMode : public AGameMode
 {
@@ -20,7 +32,13 @@ public:
     virtual AActor* ChoosePlayerStart_Implementation(AController* Player) override;
     virtual void BeginPlay() override;
 
+    UPROPERTY(EditDefaultsOnly, Category = "Round Reset")
+    TSubclassOf<AActor> CarryableBaseClass;
 
+    void SaveCarryablesInitialState();
+
+    UFUNCTION(BlueprintCallable)
+    void ResetCarryables();
 
     UFUNCTION(BlueprintCallable)
     void HandlePlayerDamage(AController* Victim, AController* Attacker, float DamageAmount);
@@ -42,7 +60,7 @@ public:
 
 protected:
     UPROPERTY(EditDefaultsOnly, Category = "Round")
-    float RoundDuration = 60.f;
+    float RoundDuration = 15.f;
 
     UPROPERTY(EditDefaultsOnly, Category = "Round")
     int32 ExpectedPlayerCount = 2;
@@ -71,4 +89,7 @@ private:
     int32 EmployeeCount = 0;
 
     TSet<APlayerStart*> UsedPlayerStarts;
+
+    UPROPERTY()
+    TArray<FCarryableSpawnData> InitialCarryablesData;
 };
