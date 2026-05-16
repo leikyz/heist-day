@@ -318,43 +318,41 @@ void AHeistDayGameMode::OnRoundTimerExpired()
 
     case EMatchPhase::FirstRound:
     {
-
-
-        CachedGameState->Server_SetMatchPhase(EMatchPhase::FirstRoundEnd);
         CachedGameState->Server_SetRemainingTime(6.0f);
+        CachedGameState->Server_SetMatchPhase(EMatchPhase::FirstRoundEnd);
 
-        FTimerHandle FirstRoundEndTimer;
-        GetWorldTimerManager().SetTimer(FirstRoundEndTimer, [this]()
+        SwapAllTeamsRoles();
+
+        GetWorldTimerManager().SetTimer(RoundTimerHandle, [this]()
             {
-                SwapAllTeamsRoles();
-             
+                //SwapAllTeamsRoles();
+
                 TeleportPlayersToNewSpawns();
 
                 ResetAllPlayersHealth();
 
                 ResetCarryables();
 
-                CachedGameState->Server_SetMatchPhase(EMatchPhase::SecondRoundStart); 
                 CachedGameState->Server_SetRemainingTime(14.0f);
+                CachedGameState->Server_SetMatchPhase(EMatchPhase::SecondRoundStart);
 
-                FTimerHandle SecondRoundStartTimer;
-                GetWorldTimerManager().SetTimer(SecondRoundStartTimer, [this]()
+                GetWorldTimerManager().SetTimer(RoundTimerHandle, [this]()
                     {
                         StartRound(2);
 
                     }, 14.0f, false);
 
-            }, 6.0f, false); 
+            }, 6.0f, false);
         break;
-    } 
+    }
     case EMatchPhase::SecondRound:
     {
-        CachedGameState->Server_SetMatchPhase(EMatchPhase::SecondRoundEnd);
         CachedGameState->Server_SetRemainingTime(6.0f);
+        CachedGameState->Server_SetMatchPhase(EMatchPhase::SecondRoundEnd);
+
         UE_LOG(LogTemp, Warning, TEXT("[GameMode] Second round ended. Match should end or restart after delay."));
 
-        FTimerHandle StartDelay;
-        GetWorldTimerManager().SetTimer(StartDelay, [this]()
+        GetWorldTimerManager().SetTimer(RoundTimerHandle, [this]()
             {
                 CachedGameState->Server_SetMatchPhase(EMatchPhase::MatchEnd);
             }, 6.0f, false);

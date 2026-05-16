@@ -15,6 +15,7 @@ void AHeistDayGameState::GetLifetimeReplicatedProps(
     DOREPLIFETIME(AHeistDayGameState, RemainingTime);
     DOREPLIFETIME(AHeistDayGameState, MatchPhase);
     DOREPLIFETIME(AHeistDayGameState, CurrentMatchData);
+    DOREPLIFETIME(AHeistDayGameState, GlobalMuseumValue);
 }
 
 
@@ -40,6 +41,11 @@ void AHeistDayGameState::Server_SetMatchPhase(EMatchPhase NewPhase)
     MatchPhase = NewPhase;
 }
 
+void AHeistDayGameState::Server_SetMuseumValue(int32 NewValue)
+{
+    GlobalMuseumValue = NewValue;
+}
+
 void AHeistDayGameState::OnRep_MatchPhase()
 {
     OnMatchPhaseChanged.Broadcast(MatchPhase);
@@ -48,6 +54,11 @@ void AHeistDayGameState::OnRep_MatchPhase()
 void AHeistDayGameState::OnRep_RemainingTime()
 {
     OnRemainingTimeChanged.Broadcast(RemainingTime);
+}
+
+void AHeistDayGameState::OnRep_GlobalMuseumValue()
+{
+    OnMuseumValueChanged.Broadcast(GlobalMuseumValue);
 }
 
 void AHeistDayGameState::OnRep_CurrentMatchData()
@@ -99,6 +110,7 @@ void AHeistDayGameState::Server_SetThiefScore(int32 TeamId, int32 ScoreToAdd)
         OnTeamValueChanged.Broadcast(*ModifiedTeam);
     }
 }
+
 
 FTransform AHeistDayGameState::GetPlayerRespawnTransform(AController* Player)
 {

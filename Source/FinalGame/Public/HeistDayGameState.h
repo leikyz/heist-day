@@ -58,6 +58,7 @@ struct FMatchData
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnMatchPhaseChanged, EMatchPhase, NewPhase);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnRemainingTimeChanged, float, RemainingSeconds);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnTeamValueChanged, FTeamData, TeamData);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnMuseumValueChanged, int32, NewValue);
 
 UCLASS()
 class FINALGAME_API AHeistDayGameState : public AGameState
@@ -79,6 +80,10 @@ public:
 
     void Server_SetThiefScore(int32 TeamId, int32 ScoreToAdd);
     void Server_SetEmployeeScore(int32 TeamId, int32 ScoreToAdd);
+
+    UFUNCTION(BlueprintCallable, Category = "Match|Museum")
+	void Server_SetMuseumValue(int32 NewValue);
+
 
     UFUNCTION(BlueprintPure)
     float GetRemainingTime() const { return RemainingTime; }
@@ -102,6 +107,9 @@ public:
     UPROPERTY(BlueprintAssignable)
     FOnRemainingTimeChanged OnRemainingTimeChanged;
 
+    UPROPERTY(BlueprintAssignable, Category = "Match|Museum")
+    FOnMuseumValueChanged OnMuseumValueChanged;
+
     UFUNCTION(BlueprintPure, Category = "Match")
     FTeamData GetTeamDataById(int32 TeamId) const;
 
@@ -116,6 +124,12 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Match")
     bool GetMatchLooser(FTeamData& OutLooser);
 
+    UFUNCTION(BlueprintPure, Category = "Match|Museum")
+    int32 GetMuseumValue() const { return GlobalMuseumValue; }
+
+    UPROPERTY(ReplicatedUsing = OnRep_GlobalMuseumValue)
+    int32 GlobalMuseumValue = 0;
+
 private:
     UPROPERTY(ReplicatedUsing = OnRep_RemainingTime)
     float RemainingTime = 0.f;
@@ -126,6 +140,8 @@ private:
     UPROPERTY(ReplicatedUsing = OnRep_CurrentMatchData)
     FMatchData CurrentMatchData;
 
+
+
     UFUNCTION()
     void OnRep_RemainingTime();
 
@@ -134,4 +150,7 @@ private:
 
     UFUNCTION()
     void OnRep_CurrentMatchData();
+
+    UFUNCTION()
+    void OnRep_GlobalMuseumValue();
 };
