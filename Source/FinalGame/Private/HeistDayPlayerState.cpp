@@ -25,8 +25,12 @@ void AHeistDayPlayerState::SetCurrentHealth(int32 NewHealth)
     {
         CurrentHealth = FMath::Clamp(NewHealth, int32(0), MaxHealth);
 
-        if (CurrentHealth <= 0)
-            OnPlayerDied.Broadcast();
+        OnPlayerDamaged.Broadcast(this);
+
+		if (IsDead())
+		{
+			OnPlayerDied.Broadcast();
+		}
 
         OnStatsChanged.Broadcast(this);
 
@@ -105,8 +109,13 @@ void AHeistDayPlayerState::OnRep_CurrentHealth()
 {
     UE_LOG(LogTemp, Warning, TEXT("[Client] CurrentHealth received = %d for PlayerId = %d"), CurrentHealth, GetPlayerId());
 
-    if (CurrentHealth <= 0)
+    OnPlayerDamaged.Broadcast(this);
+
+
+    if (IsDead())
+    {
         OnPlayerDied.Broadcast();
+    }
 
     OnStatsChanged.Broadcast(this);
 }

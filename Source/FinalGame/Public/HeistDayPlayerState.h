@@ -29,8 +29,8 @@ struct FRoundData
 
 };
 
-
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnPlayerDied);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnPlayerDamaged, AHeistDayPlayerState*, PlayerState);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnStatsChanged, AHeistDayPlayerState*, PlayerState);
 
 UCLASS()
@@ -85,7 +85,10 @@ public:
 	UFUNCTION(BlueprintPure)
 	bool IsDead() const { return CurrentHealth <= 0; }
 
-    UPROPERTY(BlueprintAssignable)
+    UPROPERTY(BlueprintAssignable, Category = "Events")
+    FOnPlayerDamaged OnPlayerDamaged;
+
+    UPROPERTY(BlueprintAssignable, Category = "Events")
     FOnPlayerDied OnPlayerDied;
 
     UPROPERTY(BlueprintAssignable, Category = "Events")
