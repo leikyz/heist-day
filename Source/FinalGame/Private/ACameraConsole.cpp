@@ -13,12 +13,10 @@ AACameraConsole::AACameraConsole()
 void AACameraConsole::BeginPlay()
 {
 	Super::BeginPlay();
-
 }
 
 APawn* AACameraConsole::OnInteract(bool action, APawn* pawn)
 {
-
 	if (!ConsoleInteract && action)
 	{
 		PlayerPawn = pawn;
@@ -31,8 +29,12 @@ APawn* AACameraConsole::OnInteract(bool action, APawn* pawn)
 	}
 	else if (ConsoleInteract && !action)
 	{
+		APawn* ref = PlayerPawn;
+
+		PlayerPawn = nullptr;
+
 		ConsoleInteract = false;
-		return PlayerPawn;
+		return ref;
 	}
 
 	return nullptr;
@@ -40,18 +42,21 @@ APawn* AACameraConsole::OnInteract(bool action, APawn* pawn)
 
 APawn* AACameraConsole::NavigateCamera(int stepDir)
 {
-	if (CameraList.Num() > 0)
+	if (ConsoleInteract)
 	{
-		IndexCamera += stepDir;
+		if (CameraList.Num() > 0)
+		{
+			IndexCamera += stepDir;
 
-		IndexCamera = IndexCamera < 0 ? CameraList.Num() - 1 : IndexCamera;
-		IndexCamera %= CameraList.Num();
+			IndexCamera = IndexCamera < 0 ? CameraList.Num() - 1 : IndexCamera;
+			IndexCamera %= CameraList.Num();
 
-		return CameraList[IndexCamera];
+			return CameraList[IndexCamera];
+		}
+
+		UE_LOG(LogTemp, Warning, TEXT("No camera in camera list"));
 	}
-
-	UE_LOG(LogTemp, Warning, TEXT("No camera in camera list"));
-
+	
 	return nullptr;
 }
 
