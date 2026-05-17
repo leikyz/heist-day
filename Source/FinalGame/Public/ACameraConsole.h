@@ -16,10 +16,10 @@ public:
 	AACameraConsole();
 
 	UFUNCTION(BlueprintCallable)
-	void OnInteract(bool action);
+	APawn* OnInteract(bool action);
 
 	UFUNCTION(BlueprintCallable)
-	void NavigateCamera(int stepDir);
+	APawn* NavigateCamera(int stepDir);
 
 	UFUNCTION(CallInEditor, Category = "Camera management")
 	void SpawnCamera();
@@ -29,10 +29,10 @@ public:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Console param")
 	int IndexCamera = 0;
+
 	
 	APawn* PlayerPawn;
-	APlayerController* PlayerController;
-	
+
 	bool ConsoleInteract = false;
 
 protected:
