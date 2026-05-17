@@ -35,6 +35,9 @@ public:
     UPROPERTY(EditDefaultsOnly, Category = "Round Reset")
     TSubclassOf<AActor> CarryableBaseClass;
 
+    UPROPERTY(EditDefaultsOnly, Category = "Round Reset")
+    TSubclassOf<AActor> KeycardBaseClass;
+
     void SaveCarryablesInitialState();
 
     UFUNCTION(BlueprintCallable)
@@ -60,10 +63,10 @@ public:
 
 protected:
     UPROPERTY(EditDefaultsOnly, Category = "Round")
-    float RoundDuration = 60.f;
+    float RoundDuration = 30.f;
 
     UPROPERTY(EditDefaultsOnly, Category = "Round")
-    int32 ExpectedPlayerCount = 1;
+    int32 ExpectedPlayerCount = 4;
     int32 ReadyPlayersCount = 0;
 
 

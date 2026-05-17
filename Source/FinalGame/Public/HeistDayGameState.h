@@ -59,7 +59,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnMatchPhaseChanged, EMatchPhase, N
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnRemainingTimeChanged, float, RemainingSeconds);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnTeamValueChanged, FTeamData, TeamData);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnMuseumValueChanged, int32, NewValue);
-
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnIsAlarmingChanged, bool, bIsAlarming);
 UCLASS()
 class FINALGAME_API AHeistDayGameState : public AGameState
 {
@@ -78,6 +78,8 @@ public:
     void Server_SetRemainingTime(float Seconds);
     void Server_SetMatchPhase(EMatchPhase NewPhase);
 
+    UFUNCTION(BlueprintCallable)
+    void Server_SetIsAlarming(bool bNewIsAlarming);
     void Server_SetThiefScore(int32 TeamId, int32 ScoreToAdd);
     void Server_SetEmployeeScore(int32 TeamId, int32 ScoreToAdd);
 
@@ -107,6 +109,9 @@ public:
     UPROPERTY(BlueprintAssignable)
     FOnRemainingTimeChanged OnRemainingTimeChanged;
 
+    UPROPERTY(BlueprintAssignable)
+    FOnIsAlarmingChanged OnIsAlarmingChanged;
+
     UPROPERTY(BlueprintAssignable, Category = "Match|Museum")
     FOnMuseumValueChanged OnMuseumValueChanged;
 
@@ -116,6 +121,9 @@ public:
     UFUNCTION(BlueprintPure, Category = "Match")
     FTeamData GetOpposingTeamDataById(int32 TeamId) const;
 
+
+    UFUNCTION(BlueprintPure, Category = "Match")
+    bool GetIsAlarming() const { return bIsAlarming; }
 
     UFUNCTION(BlueprintCallable, Category = "Match")
     bool GetMatchWinner(FTeamData& OutWinner);
@@ -140,7 +148,8 @@ private:
     UPROPERTY(ReplicatedUsing = OnRep_CurrentMatchData)
     FMatchData CurrentMatchData;
 
-
+    UPROPERTY(ReplicatedUsing = OnRep_IsAlarming)
+	bool bIsAlarming = false;
 
     UFUNCTION()
     void OnRep_RemainingTime();
@@ -153,4 +162,7 @@ private:
 
     UFUNCTION()
     void OnRep_GlobalMuseumValue();
+
+    UFUNCTION()
+    void OnRep_IsAlarming();
 };

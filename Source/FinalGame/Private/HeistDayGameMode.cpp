@@ -199,6 +199,10 @@ void AHeistDayGameMode::PostLogin(APlayerController* NewPlayer)
         ? CachedGameState->CurrentMatchData.FirstTeam
         : CachedGameState->CurrentMatchData.SecondTeam;
 
+    CachedGameState->CurrentMatchData.FirstTeam.EmployeeScore = CachedGameState->GetMuseumValue();
+    CachedGameState->CurrentMatchData.SecondTeam.EmployeeScore = CachedGameState->GetMuseumValue();
+
+
     if (TargetTeamData.TeamId == 0)
     {
         TargetTeamData.TeamId = AssignedTeamId;
@@ -210,6 +214,14 @@ void AHeistDayGameMode::PostLogin(APlayerController* NewPlayer)
     UE_LOG(LogTemp, Warning, TEXT("[GameMode] Joueur %s ajouté à la structure MatchData de la Team %d"), *PS->GetPlayerName(), AssignedTeamId);
 
     Super::PostLogin(NewPlayer);
+
+    if (AActor* InitialStart = ChoosePlayerStart(NewPlayer))
+    {
+        NewPlayer->StartSpot = InitialStart;
+        UE_LOG(LogTemp, Warning, TEXT("[GameMode] StartSpot initialisé à %s pour %s"), *InitialStart->GetName(), *NewPlayer->GetName());
+    }
+
+   
 }
 void AHeistDayGameMode::StartRound(int roundNumber)
 {
@@ -438,38 +450,66 @@ void AHeistDayGameMode::SaveCarryablesInitialState()
 {
     InitialCarryablesData.Empty();
 
-    if (!CarryableBaseClass)
+    if (CarryableBaseClass)
     {
-        UE_LOG(LogTemp, Error, TEXT("[GameMode] CarryableBaseClass n'est pas assigné ! Mets BP_CarryableBase dans le Blueprint du GameMode."));
-        return;
-    }
-
-    for (TActorIterator<AActor> It(GetWorld(), CarryableBaseClass); It; ++It)
-    {
-        AActor* Item = *It;
-        if (Item)
+        for (TActorIterator<AActor> It(GetWorld(), CarryableBaseClass); It; ++It)
         {
-            FCarryableSpawnData Data;
-            Data.CarryableClass = Item->GetClass();
-            Data.InitialTransform = Item->GetActorTransform();
-
-            InitialCarryablesData.Add(Data);
+            if (AActor* Item = *It)
+            {
+                FCarryableSpawnData Data;
+                Data.CarryableClass = Item->GetClass();
+                Data.InitialTransform = Item->GetActorTransform();
+                InitialCarryablesData.Add(Data);
+            }
         }
     }
+    else
+    {
+        UE_LOG(LogTemp, Error, TEXT("[GameMode] CarryableBaseClass n'est pas assigné ! Mets BP_CarryableBase dans le Blueprint du GameMode."));
+    }
 
-    UE_LOG(LogTemp, Warning, TEXT("[GameMode] %d objets collectables sauvegardés au démarrage."), InitialCarryablesData.Num());
+    if (KeycardBaseClass)
+    {
+        for (TActorIterator<AActor> It(GetWorld(), KeycardBaseClass); It; ++It)
+        {
+            if (AActor* Item = *It)
+            {
+                FCarryableSpawnData Data;
+                Data.CarryableClass = Item->GetClass();
+                Data.InitialTransform = Item->GetActorTransform();
+                InitialCarryablesData.Add(Data);
+            }
+        }
+    }
+    else
+    {
+        UE_LOG(LogTemp, Error, TEXT("[GameMode] KeycardBaseClass n'est pas assigné ! Mets BP_Keycard_Pickup dans le Blueprint du GameMode."));
+    }
+
+    UE_LOG(LogTemp, Warning, TEXT("[GameMode] %d objets (Carryables + Keycards) sauvegardés au démarrage."), InitialCarryablesData.Num());
 }
 
 void AHeistDayGameMode::ResetCarryables()
 {
-    if (!CarryableBaseClass) return;
-
-    for (TActorIterator<AActor> It(GetWorld(), CarryableBaseClass); It; ++It)
+    if (CarryableBaseClass)
     {
-        AActor* Item = *It;
-        if (Item)
+        for (TActorIterator<AActor> It(GetWorld(), CarryableBaseClass); It; ++It)
         {
-            Item->Destroy();
+            if (AActor* Item = *It)
+            {
+                Item->Destroy();
+            }
+        }
+    }
+
+    if (KeycardBaseClass)
+    {
+        for (TActorIterator<AActor> It(GetWorld(), KeycardBaseClass); It; ++It)
+        {
+            if (AActor* Item = *It)
+            {
+                Item->Destroy();
+            }
         }
     }
 
@@ -484,6 +524,5 @@ void AHeistDayGameMode::ResetCarryables()
         }
     }
 
-    UE_LOG(LogTemp, Warning, TEXT("[GameMode] %d objets collectables réinitialisés !"), InitialCarryablesData.Num());
+    UE_LOG(LogTemp, Warning, TEXT("[GameMode] %d objets (Carryables + Keycards) réinitialisés !"), InitialCarryablesData.Num());
 }
-

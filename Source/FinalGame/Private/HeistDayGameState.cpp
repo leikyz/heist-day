@@ -16,6 +16,7 @@ void AHeistDayGameState::GetLifetimeReplicatedProps(
     DOREPLIFETIME(AHeistDayGameState, MatchPhase);
     DOREPLIFETIME(AHeistDayGameState, CurrentMatchData);
     DOREPLIFETIME(AHeistDayGameState, GlobalMuseumValue);
+    DOREPLIFETIME(AHeistDayGameState, bIsAlarming);
 }
 
 
@@ -28,6 +29,19 @@ void AHeistDayGameState::Tick(float DeltaSeconds)
     if (RemainingTime <= 0.f) return;
 
     RemainingTime = FMath::Max(0.f, RemainingTime - DeltaSeconds);
+}
+
+void AHeistDayGameState::Server_SetIsAlarming(bool bNewIsAlarming)
+{
+    if (bIsAlarming != bNewIsAlarming)
+    {
+        bIsAlarming = bNewIsAlarming;
+
+        if (HasAuthority() && GetNetMode() != NM_DedicatedServer)
+        {
+            OnRep_IsAlarming();
+        }
+    }
 }
 
 void AHeistDayGameState::Server_SetRemainingTime(float Seconds)
@@ -60,6 +74,12 @@ void AHeistDayGameState::OnRep_GlobalMuseumValue()
 {
     OnMuseumValueChanged.Broadcast(GlobalMuseumValue);
 }
+
+void AHeistDayGameState::OnRep_IsAlarming()
+{
+    OnIsAlarmingChanged.Broadcast(bIsAlarming);
+}   
+
 
 void AHeistDayGameState::OnRep_CurrentMatchData()
 {
