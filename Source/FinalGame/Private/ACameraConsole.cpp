@@ -16,15 +16,13 @@ void AACameraConsole::BeginPlay()
 
 }
 
-APawn* AACameraConsole::OnInteract(bool action)
+APawn* AACameraConsole::OnInteract(bool action, APawn* pawn)
 {
-	if (!PlayerPawn)
-	{
-		PlayerPawn = GetWorld()->GetFirstPlayerController()->GetPawn();
-	}
 
 	if (!ConsoleInteract && action)
 	{
+		PlayerPawn = pawn;
+
 		if (CameraList.Num() > IndexCamera)
 		{
 			ConsoleInteract = true;

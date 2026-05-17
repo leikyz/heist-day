@@ -16,7 +16,7 @@ public:
 	AACameraConsole();
 
 	UFUNCTION(BlueprintCallable)
-	APawn* OnInteract(bool action);
+	APawn* OnInteract(bool action, APawn* pawn);
 
 	UFUNCTION(BlueprintCallable)
 	APawn* NavigateCamera(int stepDir);
@@ -30,7 +30,7 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Console param")
 	int IndexCamera = 0;
 
-	
+	UPROPERTY( BlueprintReadOnly, Category = "Console param")
 	APawn* PlayerPawn;
 
 	bool ConsoleInteract = false;
