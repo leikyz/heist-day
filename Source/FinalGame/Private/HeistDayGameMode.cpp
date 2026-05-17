@@ -335,6 +335,8 @@ void AHeistDayGameMode::OnRoundTimerExpired()
 
         SwapAllTeamsRoles();
 
+        CachedGameState->Server_SetIsAlarming(false);
+
         GetWorldTimerManager().SetTimer(RoundTimerHandle, [this]()
             {
                 //SwapAllTeamsRoles();
