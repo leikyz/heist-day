@@ -7,48 +7,40 @@ AACameraConsole::AACameraConsole()
 {
 	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
-
 }
 
 // Called when the game starts or when spawned
 void AACameraConsole::BeginPlay()
 {
-
-	if (GetNetMode() == NM_DedicatedServer)
-		return;
-
-	PlayerPawn = GetWorld()->GetFirstPlayerController()->GetPawn();
-	PlayerController = GetWorld()->GetFirstPlayerController();
-
 	Super::BeginPlay();
 
 }
 
-void AACameraConsole::OnInteract(bool action)
+APawn* AACameraConsole::OnInteract(bool action)
 {
+	if (!PlayerPawn)
+	{
+		PlayerPawn = GetWorld()->GetFirstPlayerController()->GetPawn();
+	}
+
 	if (!ConsoleInteract && action)
 	{
-		FVector PlayerPos = PlayerPawn->GetActorLocation();
-		FVector ConsolePos = GetActorLocation();
-
 		if (CameraList.Num() > IndexCamera)
 		{
-			PlayerController->Possess(CameraList[IndexCamera]);
 			ConsoleInteract = true;
-
-			EnableInput(PlayerController);
+			return CameraList[IndexCamera];
 		}
 	}
 	else if (ConsoleInteract && !action)
 	{
-		PlayerController->Possess(PlayerPawn);
 		ConsoleInteract = false;
-
-		DisableInput(PlayerController);
+		return PlayerPawn;
 	}
+
+	return nullptr;
 }
 
-void AACameraConsole::NavigateCamera(int stepDir)
+APawn* AACameraConsole::NavigateCamera(int stepDir)
 {
 	if (CameraList.Num() > 0)
 	{
@@ -57,8 +49,12 @@ void AACameraConsole::NavigateCamera(int stepDir)
 		IndexCamera = IndexCamera < 0 ? CameraList.Num() - 1 : IndexCamera;
 		IndexCamera %= CameraList.Num();
 
-		PlayerController->Possess(CameraList[IndexCamera]);
+		return CameraList[IndexCamera];
 	}
+
+	UE_LOG(LogTemp, Warning, TEXT("No camera in camera list"));
+
+	return nullptr;
 }
 
 void AACameraConsole::ClearCamera()
@@ -91,7 +87,6 @@ void AACameraConsole::SpawnCamera()
 		}
 	}
 
-	UE_LOG(LogTemp, Warning, TEXT("Spawn camera"));
 }
 
 
