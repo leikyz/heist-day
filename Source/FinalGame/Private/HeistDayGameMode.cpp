@@ -242,9 +242,8 @@ void AHeistDayGameMode::PostLogin(APlayerController* NewPlayer)
         ? CachedGameState->CurrentMatchData.FirstTeam
         : CachedGameState->CurrentMatchData.SecondTeam;
 
-    CachedGameState->CurrentMatchData.FirstTeam.EmployeeScore = CachedGameState->GetMuseumValue();
-    CachedGameState->CurrentMatchData.SecondTeam.EmployeeScore = CachedGameState->GetMuseumValue();
-
+    CachedGameState->CurrentMatchData.FirstTeam.EmployeeScore = CachedGameState->GetMuseumValue() / 2;
+    CachedGameState->CurrentMatchData.SecondTeam.EmployeeScore = CachedGameState->GetMuseumValue() / 2;
 
     if (TargetTeamData.TeamId == 0)
     {
