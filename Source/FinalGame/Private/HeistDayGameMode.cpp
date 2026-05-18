@@ -528,3 +528,14 @@ void AHeistDayGameMode::ResetCarryables()
 
     UE_LOG(LogTemp, Warning, TEXT("[GameMode] %d objets (Carryables + Keycards) réinitialisés !"), InitialCarryablesData.Num());
 }
+void AHeistDayGameMode::SetAlarmTimer(float NewTime)
+{
+    GetWorldTimerManager().SetTimer(
+        RoundTimerHandle,
+        this,
+        &AHeistDayGameMode::OnRoundTimerExpired,
+        NewTime,
+        false
+    );
+    UE_LOG(LogTemp, Warning, TEXT("[GameMode] Timer mis à jour suite à l'alarme : %.0f s"), NewTime);
+}

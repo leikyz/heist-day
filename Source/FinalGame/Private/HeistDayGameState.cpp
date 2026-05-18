@@ -1,5 +1,6 @@
 #include "HeistDayGameState.h"
 #include "Net/UnrealNetwork.h"
+#include "HeistDayGameMode.h"
 
 AHeistDayGameState::AHeistDayGameState()
 {
@@ -37,9 +38,28 @@ void AHeistDayGameState::Server_SetIsAlarming(bool bNewIsAlarming)
     {
         bIsAlarming = bNewIsAlarming;
 
-        if (HasAuthority() && GetNetMode() != NM_DedicatedServer)
+        if (HasAuthority())
         {
-            OnRep_IsAlarming();
+            if (bIsAlarming)
+            {
+                float AlarmTime = 60.0f;
+
+                if (RemainingTime > AlarmTime)
+                {
+                    Server_SetRemainingTime(AlarmTime);
+
+                    AHeistDayGameMode* GM = Cast<AHeistDayGameMode>(GetWorld()->GetAuthGameMode());
+                    if (GM)
+                    {
+                        GM->SetAlarmTimer(AlarmTime);
+                    }
+                }
+            }
+
+            if (GetNetMode() != NM_DedicatedServer)
+            {
+                OnRep_IsAlarming();
+            }
         }
     }
 }

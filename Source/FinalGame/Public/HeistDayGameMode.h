@@ -57,7 +57,7 @@ public:
 
     void OnClientReady();
 
-
+    void SetAlarmTimer(float NewTime);
 
     //void HandlePlayerDeath(AController* Victim);
 
@@ -66,7 +66,7 @@ protected:
     float RoundDuration = 30.f;
 
     UPROPERTY(EditDefaultsOnly, Category = "Round")
-    int32 ExpectedPlayerCount = 4;
+    int32 ExpectedPlayerCount = 2;
     int32 ReadyPlayersCount = 0;
 
 
