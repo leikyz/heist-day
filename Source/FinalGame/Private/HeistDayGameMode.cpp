@@ -406,6 +406,7 @@ void AHeistDayGameMode::OnRoundTimerExpired()
     {
         CachedGameState->Server_SetRemainingTime(6.0f);
         CachedGameState->Server_SetMatchPhase(EMatchPhase::SecondRoundEnd);
+		CachedGameState->Server_SetIsAlarming(false);
 
         UE_LOG(LogTemp, Warning, TEXT("[GameMode] Second round ended. Match should end or restart after delay."));
 
@@ -564,7 +565,6 @@ void AHeistDayGameMode::OnMatchEndResponse(FHttpRequestPtr Request, FHttpRespons
 {
     UE_LOG(LogTemp, Warning, TEXT("[GameMode] Backend acknowledged Match End. Shutting down process. Goodbye!"));
 
-    // Fermeture propre du processus serveur ! Go va détecter cette fermeture et récupérer le port.
     FGenericPlatformMisc::RequestExit(false);
 }
 void AHeistDayGameMode::ResetCarryables()
