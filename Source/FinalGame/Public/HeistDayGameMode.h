@@ -5,6 +5,7 @@
 #include "HeistDayGameState.h"
 #include "GameFramework/PlayerStart.h"
 #include "EngineUtils.h"
+#include "Interfaces/IHttpRequest.h" 
 #include "HeistDayGameMode.generated.h"
 
 USTRUCT(BlueprintType)
@@ -31,6 +32,12 @@ public:
 
     virtual AActor* ChoosePlayerStart_Implementation(AController* Player) override;
     virtual void BeginPlay() override;
+
+    void NotifyServerReady();
+    void OnServerReadyResponse(FHttpRequestPtr Request, FHttpResponsePtr Response, bool bWasSuccessful);
+
+    void NotifyMatchEndAndShutdown();
+    void OnMatchEndResponse(FHttpRequestPtr Request, FHttpResponsePtr Response, bool bWasSuccessful);
 
     UPROPERTY(EditDefaultsOnly, Category = "Round Reset")
     TSubclassOf<AActor> CarryableBaseClass;
@@ -63,7 +70,7 @@ public:
 
 protected:
     UPROPERTY(EditDefaultsOnly, Category = "Round")
-    float RoundDuration = 30.f;
+    float RoundDuration = 5.f;
 
     UPROPERTY(EditDefaultsOnly, Category = "Round")
     int32 ExpectedPlayerCount = 2;

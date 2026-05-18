@@ -7,10 +7,13 @@
 #include "OnlineSubsystemUtils.h"
 #include "Interfaces/OnlineExternalUIInterface.h"
 #include "Async/Async.h"
+#include "Dom/JsonObject.h"
+#include "Serialization/JsonReader.h"
+#include "Serialization/JsonSerializer.h"
 
-const FName UEOSLobbySubsystem::LobbySessionName = NAME_GameSession;
+const FName UEOSLobbySubsystem::LobbySessionName = FName("PartyLobbySession");
 
-//  Lifecycle
+// Lifecycle
 
 void UEOSLobbySubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
@@ -32,6 +35,24 @@ void UEOSLobbySubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	}
 }
 
+void UEOSLobbySubsystem::ResetLobbyForNextMatch()
+{
+	bLocalPlayerReady = false;
+	bIsMatchmakingStarted = false;
+	bHasStartedTeleport = false;
+	CachedServerIP = TEXT("");
+	CachedMatchStatus = TEXT("Idle");
+	CachedTeamAssignmentsJson = TEXT("");
+
+	if (IsLobbyLeader())
+	{
+		UpdateLobbyGlobalData();
+	}
+
+	UpdatePresenceData();
+	RefreshMemberList();
+}
+
 void UEOSLobbySubsystem::Deinitialize()
 {
 	if (IOnlineSessionPtr Sessions = GetSessionInterface())
@@ -41,7 +62,6 @@ void UEOSLobbySubsystem::Deinitialize()
 		Sessions->OnSessionParticipantLeftDelegates.Remove(OnSessionParticipantLeftHandle);
 		Sessions->ClearOnSessionSettingsUpdatedDelegate_Handle(OnSessionSettingsUpdatedHandle);
 		OnMatchReadyToJoin.RemoveDynamic(this, &UEOSLobbySubsystem::HandleMatchReadyToJoin);
-
 	}
 
 	if (IOnlinePresencePtr Presence = GetOSS() ? GetOSS()->GetPresenceInterface() : nullptr)
@@ -51,7 +71,7 @@ void UEOSLobbySubsystem::Deinitialize()
 
 	Super::Deinitialize();
 }
-// EOSLobbySubsystem.cpp
+
 void UEOSLobbySubsystem::BroadcastMatchInfo(const FString& ConnectionString, const FString& TeamAssignmentsJson)
 {
 	if (!IsLobbyLeader()) return;
@@ -61,13 +81,10 @@ void UEOSLobbySubsystem::BroadcastMatchInfo(const FString& ConnectionString, con
 	RefreshMemberList();
 }
 
-
 void UEOSLobbySubsystem::HandleMatchReadyToJoin(const FString& ConnectionString)
 {
-	UEOSMatchmakingSubsystem* MatchSub =
-		GetGameInstance()->GetSubsystem<UEOSMatchmakingSubsystem>();
-	APlayerController* PC =
-		GetGameInstance()->GetFirstLocalPlayerController();
+	UEOSMatchmakingSubsystem* MatchSub = GetGameInstance()->GetSubsystem<UEOSMatchmakingSubsystem>();
+	APlayerController* PC = GetGameInstance()->GetFirstLocalPlayerController();
 
 	if (!PC || !MatchSub) return;
 
@@ -79,7 +96,7 @@ void UEOSLobbySubsystem::HandleMatchReadyToJoin(const FString& ConnectionString)
 	PC->ClientTravel(URL, TRAVEL_Absolute);
 }
 
-//  Public API
+// Public API
 
 void UEOSLobbySubsystem::CreateOwnLobby()
 {
@@ -152,7 +169,7 @@ void UEOSLobbySubsystem::BroadcastServerIP(const FString& ConnectionString)
 	RefreshMemberList();
 }
 
-//  Session Callbacks
+// Session Callbacks
 
 void UEOSLobbySubsystem::HandleCreateSessionComplete(FName SessionName, bool bWasSuccessful)
 {
@@ -168,9 +185,7 @@ void UEOSLobbySubsystem::HandleCreateSessionComplete(FName SessionName, bool bWa
 
 	if (NamedSession && NamedSession->SessionInfo.IsValid())
 	{
-		// Real Lobby Id
 		LobbyId = NamedSession->SessionInfo->GetSessionId().ToString();
-
 		UE_LOG(LogTemp, Warning, TEXT("Lobby created successfully : %s"), *LobbyId);
 	}
 
@@ -208,7 +223,6 @@ void UEOSLobbySubsystem::HandleDestroySessionComplete(FName SessionName, bool bW
 	IOnlineSessionPtr Sessions = GetSessionInterface();
 	if (Sessions.IsValid()) Sessions->ClearOnDestroySessionCompleteDelegate_Handle(OnDestroySessionHandle);
 
-	// Destroy 3D models before flushing lobby data
 	ClearLobbyAvatars();
 
 	bIsInLobby = false;
@@ -231,6 +245,7 @@ void UEOSLobbySubsystem::HandleDestroySessionComplete(FName SessionName, bool bW
 		OnLobbyLeft.Broadcast();
 	}
 }
+
 void UEOSLobbySubsystem::HandleSessionParticipantJoined(FName SessionName, const FUniqueNetId& UniqueId)
 {
 	if (SessionName != LobbySessionName) return;
@@ -241,7 +256,7 @@ void UEOSLobbySubsystem::HandleSessionParticipantJoined(FName SessionName, const
 void UEOSLobbySubsystem::HandleSessionParticipantLeft(FName SessionName, const FUniqueNetId& UniqueId, EOnSessionParticipantLeftReason Reason)
 {
 	if (SessionName != LobbySessionName) return;
-	TrackedUserIds.RemoveAll([&UniqueId](const FUniqueNetIdPtr& Id) { return *Id == UniqueId; });
+	TrackedUserIds.RemoveAll([&UniqueId](const FUniqueNetIdPtr& Id) { return Id.IsValid() && *Id == UniqueId; });
 	RefreshMemberList();
 }
 
@@ -253,7 +268,7 @@ void UEOSLobbySubsystem::HandleSessionUserInviteAccepted(const bool bWasSuccessf
 	JoinLobby(Res);
 }
 
-//  Presence Callbacks
+// Presence Callbacks
 
 void UEOSLobbySubsystem::HandleSetPresenceComplete(const FUniqueNetId& UserId, const bool bWasSuccessful)
 {
@@ -274,7 +289,7 @@ void UEOSLobbySubsystem::HandlePresenceReceived(const FUniqueNetId& UserId, cons
 	RefreshMemberList();
 }
 
-//  Presence Query
+// Presence Query
 
 void UEOSLobbySubsystem::QueryPresenceForTrackedUsers()
 {
@@ -288,7 +303,6 @@ void UEOSLobbySubsystem::QueryPresenceForTrackedUsers()
 	{
 		if (!PeerId.IsValid() || (LocalId.IsValid() && *PeerId == *LocalId)) continue;
 
-		// Correcting delegate binding for QueryPresence
 		PresenceInterface->QueryPresence(*PeerId,
 			IOnlinePresence::FOnPresenceTaskCompleteDelegate::CreateUObject(this, &UEOSLobbySubsystem::HandleQueryPresenceComplete));
 	}
@@ -300,7 +314,7 @@ void UEOSLobbySubsystem::HandleQueryPresenceComplete(const FUniqueNetId& UserId,
 	OnLobbyJoined.Broadcast();
 }
 
-//  Internal Helpers
+// Internal Helpers
 
 void UEOSLobbySubsystem::UpdatePresenceData()
 {
@@ -317,7 +331,6 @@ void UEOSLobbySubsystem::UpdatePresenceData()
 	PresenceStatus.Properties.Add(TEXT("LobbyReadyState"), FVariantData(bLocalPlayerReady ? TEXT("1") : TEXT("0")));
 	PresenceStatus.Properties.Add(TEXT("LobbyDisplayName"), FVariantData(IdentitySub->GetLocalDisplayName()));
 
-	// Pass the new PresenceStatus object directly into SetPresence
 	Presence->SetPresence(*LocalUserId, PresenceStatus,
 		IOnlinePresence::FOnPresenceTaskCompleteDelegate::CreateUObject(this, &UEOSLobbySubsystem::HandleSetPresenceComplete));
 }
@@ -330,32 +343,30 @@ void UEOSLobbySubsystem::UpdateLobbyGlobalData()
 	FNamedOnlineSession* Session = Sessions.IsValid() ? Sessions->GetNamedSession(LobbySessionName) : nullptr;
 	if (!Session) return;
 
+	// CORRECTIF : On envoie les données directement sans condition, ce qui permet de vider l'IP sur EOS lors du Reset
 	Session->SessionSettings.Set(TEXT("MatchStatus"), CachedMatchStatus, EOnlineDataAdvertisementType::ViaOnlineService);
-	if (!CachedServerIP.IsEmpty())
-		Session->SessionSettings.Set(TEXT("LobbyServerIP"), CachedServerIP, EOnlineDataAdvertisementType::ViaOnlineService);
-
-	if (!CachedTeamAssignmentsJson.IsEmpty())
-		Session->SessionSettings.Set(TEXT("TeamAssignments"), CachedTeamAssignmentsJson,
-			EOnlineDataAdvertisementType::ViaOnlineService);
+	Session->SessionSettings.Set(TEXT("LobbyServerIP"), CachedServerIP, EOnlineDataAdvertisementType::ViaOnlineService);
+	Session->SessionSettings.Set(TEXT("TeamAssignments"), CachedTeamAssignmentsJson, EOnlineDataAdvertisementType::ViaOnlineService);
 
 	Sessions->UpdateSession(LobbySessionName, Session->SessionSettings, true);
 }
+
 void UEOSLobbySubsystem::HandleSessionSettingsUpdated(FName SessionName, const FOnlineSessionSettings& UpdatedSettings)
 {
-	// When the leader updates the match status or the server IP, EOS fires this on the clients
 	if (SessionName == LobbySessionName)
 	{
 		RefreshMemberList();
 	}
 }
+
 void UEOSLobbySubsystem::RefreshMemberList()
 {
 	IOnlineSessionPtr Sessions = GetSessionInterface();
 	FNamedOnlineSession* Session = Sessions.IsValid() ? Sessions->GetNamedSession(LobbySessionName) : nullptr;
 	if (!Session) return;
 
-	IOnlineIdentityPtr  Identity = GetOSS() ? GetOSS()->GetIdentityInterface() : nullptr;
-	IOnlinePresencePtr  PresenceInterface = GetOSS() ? GetOSS()->GetPresenceInterface() : nullptr;
+	IOnlineIdentityPtr Identity = GetOSS() ? GetOSS()->GetIdentityInterface() : nullptr;
+	IOnlinePresencePtr PresenceInterface = GetOSS() ? GetOSS()->GetPresenceInterface() : nullptr;
 	TSharedPtr<const FUniqueNetId> LocalId = Identity.IsValid() ? Identity->GetUniquePlayerId(0) : nullptr;
 
 	TArray<FLobbyMemberInfo> NewMembers;
@@ -445,11 +456,9 @@ void UEOSLobbySubsystem::RefreshMemberList()
 	if (CurrentMembers.Num() > 0)
 	{
 		OnLobbyMembersUpdated.Broadcast(CurrentMembers);
-
 		UpdateLobbyAvatars();
 	}
 
-	// If everyone in the current lobby clicks ready, the leader fires the HTTP request.
 	if (IsLobbyLeader() && !bIsMatchmakingStarted && CurrentMembers.Num() > 0 && AreAllPlayersReady())
 	{
 		bIsMatchmakingStarted = true;
@@ -462,7 +471,6 @@ void UEOSLobbySubsystem::RefreshMemberList()
 
 void UEOSLobbySubsystem::ClearLobbyAvatars()
 {
-	// Loop backwards when removing/destroying things from an array
 	for (int32 i = SpawnedAvatars.Num() - 1; i >= 0; --i)
 	{
 		if (SpawnedAvatars[i].IsValid())
@@ -472,34 +480,29 @@ void UEOSLobbySubsystem::ClearLobbyAvatars()
 	}
 	SpawnedAvatars.Empty();
 }
+
 void UEOSLobbySubsystem::UpdateLobbyAvatars()
 {
 	UWorld* World = GetWorld();
 	if (!World) return;
 
-	// Use a timer to delay visual spawning to the next frame.
-	// This entirely disconnects the render thread allocation from the EOS callback stack, preventing D3D12 locks.
 	World->GetTimerManager().SetTimerForNextTick([this, WeakThis = TWeakObjectPtr<UEOSLobbySubsystem>(this)]()
 		{
 			if (!WeakThis.IsValid()) return;
 
 			UWorld* ValidWorld = WeakThis->GetWorld();
-
-			// CRITICAL: Do not attempt to spawn if the world is invalid or currently tearing down
 			if (!ValidWorld || ValidWorld->bIsTearingDown || !WeakThis->AvatarActorClass) return;
 
 			WeakThis->ClearLobbyAvatars();
 
-			// Fallback transforms if none are set in the Blueprint
 			if (WeakThis->PlayerSpawnTransforms.IsEmpty())
 			{
-				WeakThis->PlayerSpawnTransforms.Add(FTransform(FRotator(0.f, 180.f, 0.f), FVector(100.f, -100.f, 0.f))); // Player 1
-				WeakThis->PlayerSpawnTransforms.Add(FTransform(FRotator(0.f, 180.f, 0.f), FVector(100.f, 100.f, 0.f)));  // Player 2
+				WeakThis->PlayerSpawnTransforms.Add(FTransform(FRotator(0.f, 180.f, 0.f), FVector(100.f, -100.f, 0.f)));
+				WeakThis->PlayerSpawnTransforms.Add(FTransform(FRotator(0.f, 180.f, 0.f), FVector(100.f, 100.f, 0.f)));
 			}
 
 			const int32 MaxPlayers = 2;
 
-			// Spawn an avatar for each member currently in the lobby
 			for (int32 i = 0; i < WeakThis->CurrentMembers.Num() && i < MaxPlayers; ++i)
 			{
 				int32 TransformIndex = FMath::Min(i, WeakThis->PlayerSpawnTransforms.Num() - 1);
@@ -520,6 +523,7 @@ void UEOSLobbySubsystem::UpdateLobbyAvatars()
 			}
 		});
 }
+
 bool UEOSLobbySubsystem::AreAllPlayersReady() const
 {
 	if (CurrentMembers.IsEmpty()) return false;
@@ -538,12 +542,15 @@ void UEOSLobbySubsystem::ShowEpicOverlay()
 		{
 			ExternalUI->ShowFriendsUI(0);
 		}
-		else
-		{
-			UE_LOG(LogTemp, Warning, TEXT("EOS: External UI Interface not found. Make sure EOS is enabled."));
-		}
 	}
 }
 
-IOnlineSubsystem* UEOSLobbySubsystem::GetOSS()              const { return IOnlineSubsystem::Get(); }
-IOnlineSessionPtr  UEOSLobbySubsystem::GetSessionInterface()  const { return GetOSS() ? GetOSS()->GetSessionInterface() : nullptr; }
+IOnlineSubsystem* UEOSLobbySubsystem::GetOSS() const
+{
+	return IOnlineSubsystem::Get();
+}
+
+IOnlineSessionPtr UEOSLobbySubsystem::GetSessionInterface() const
+{
+	return GetOSS() ? GetOSS()->GetSessionInterface() : nullptr;
+}

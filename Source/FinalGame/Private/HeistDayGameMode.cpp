@@ -4,6 +4,11 @@
 #include "HeistDayGameState.h"
 #include "EngineUtils.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "HttpModule.h"
+#include "Interfaces/IHttpResponse.h"
+#include "Dom/JsonObject.h"
+#include "Serialization/JsonSerializer.h"
+#include "Serialization/JsonWriter.h"
 #include <Network/Client/EOSMatchmakingSubsystem.h>
 
 void AHeistDayGameMode::BeginPlay()
@@ -12,6 +17,44 @@ void AHeistDayGameMode::BeginPlay()
     CachedGameState = GetGameState<AHeistDayGameState>();
 
     SaveCarryablesInitialState();
+
+    if (IsRunningDedicatedServer())
+    {
+        NotifyServerReady();
+    }
+}
+void AHeistDayGameMode::OnServerReadyResponse(FHttpRequestPtr Request, FHttpResponsePtr Response, bool bWasSuccessful)
+{
+    if (bWasSuccessful && Response.IsValid() && Response->GetResponseCode() == 200)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[GameMode] Backend acknowledged Server Ready. Matchmaking will now send players."));
+    }
+    else
+    {
+        UE_LOG(LogTemp, Error, TEXT("[GameMode] Failed to notify Backend of Server Ready. Go Server might be down."));
+    }
+}
+void AHeistDayGameMode::NotifyServerReady()
+{
+    int32 ServerPort = GetWorld()->URL.Port;
+    FParse::Value(FCommandLine::Get(), TEXT("port="), ServerPort);
+
+    TSharedPtr<FJsonObject> JsonObj = MakeShareable(new FJsonObject());
+    JsonObj->SetNumberField(TEXT("server_port"), ServerPort);
+
+    FString JsonString;
+    TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&JsonString);
+    FJsonSerializer::Serialize(JsonObj.ToSharedRef(), Writer);
+
+    TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Request = FHttpModule::Get().CreateRequest();
+    Request->SetURL(TEXT("http://127.0.0.1:8080/server_ready"));
+    Request->SetVerb(TEXT("POST"));
+    Request->SetHeader(TEXT("Content-Type"), TEXT("application/json"));
+    Request->SetContentAsString(JsonString);
+    Request->OnProcessRequestComplete().BindUObject(this, &AHeistDayGameMode::OnServerReadyResponse);
+    Request->ProcessRequest();
+
+    UE_LOG(LogTemp, Warning, TEXT("[GameMode] Sending /server_ready with port %d"), ServerPort);
 }
 
 AActor* AHeistDayGameMode::ChoosePlayerStart_Implementation(AController* Player)
@@ -369,6 +412,10 @@ void AHeistDayGameMode::OnRoundTimerExpired()
         GetWorldTimerManager().SetTimer(RoundTimerHandle, [this]()
             {
                 CachedGameState->Server_SetMatchPhase(EMatchPhase::MatchEnd);
+
+                FTimerHandle ShutdownTimerHandle;
+                GetWorldTimerManager().SetTimer(ShutdownTimerHandle, this, &AHeistDayGameMode::NotifyMatchEndAndShutdown, 21.0f, false);
+
             }, 6.0f, false);
 
         break;
@@ -490,7 +537,36 @@ void AHeistDayGameMode::SaveCarryablesInitialState()
 
     UE_LOG(LogTemp, Warning, TEXT("[GameMode] %d objets (Carryables + Keycards) sauvegardés au démarrage."), InitialCarryablesData.Num());
 }
+void AHeistDayGameMode::NotifyMatchEndAndShutdown()
+{
+    int32 ServerPort = GetWorld()->URL.Port;
+    FParse::Value(FCommandLine::Get(), TEXT("port="), ServerPort);
 
+    TSharedPtr<FJsonObject> JsonObj = MakeShareable(new FJsonObject());
+    JsonObj->SetNumberField(TEXT("server_port"), ServerPort);
+
+    FString JsonString;
+    TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&JsonString);
+    FJsonSerializer::Serialize(JsonObj.ToSharedRef(), Writer);
+
+    TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Request = FHttpModule::Get().CreateRequest();
+    Request->SetURL(TEXT("http://127.0.0.1:8080/match_end"));
+    Request->SetVerb(TEXT("POST"));
+    Request->SetHeader(TEXT("Content-Type"), TEXT("application/json"));
+    Request->SetContentAsString(JsonString);
+    Request->OnProcessRequestComplete().BindUObject(this, &AHeistDayGameMode::OnMatchEndResponse);
+    Request->ProcessRequest();
+
+    UE_LOG(LogTemp, Warning, TEXT("[GameMode] Sending /match_end on port %d. Initiating auto-destruction sequence..."), ServerPort);
+}
+
+void AHeistDayGameMode::OnMatchEndResponse(FHttpRequestPtr Request, FHttpResponsePtr Response, bool bWasSuccessful)
+{
+    UE_LOG(LogTemp, Warning, TEXT("[GameMode] Backend acknowledged Match End. Shutting down process. Goodbye!"));
+
+    // Fermeture propre du processus serveur ! Go va détecter cette fermeture et récupérer le port.
+    FGenericPlatformMisc::RequestExit(false);
+}
 void AHeistDayGameMode::ResetCarryables()
 {
     if (CarryableBaseClass)

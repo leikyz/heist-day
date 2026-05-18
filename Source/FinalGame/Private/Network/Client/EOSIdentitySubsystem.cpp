@@ -22,6 +22,12 @@ void UEOSIdentitySubsystem::LoginWithDevAuthTool()
 	IOnlineIdentityPtr Identity = GetIdentityInterface();
 	if (!Identity.IsValid()) return;
 
+	if (IsLoggedIn())
+	{
+		OnLoginComplete.Broadcast(true, CachedDisplayName);
+		return;
+	}
+
 	FString Credential;
 	if (!FParse::Value(FCommandLine::Get(), TEXT("-AUTH_LOGIN="), Credential))
 		Credential = TEXT("DevUser");
@@ -70,5 +76,13 @@ FUniqueNetIdRepl UEOSIdentitySubsystem::GetLocalUserId() const
 	return UserId.IsValid() ? FUniqueNetIdRepl(*UserId) : FUniqueNetIdRepl();
 }
 
-IOnlineSubsystem* UEOSIdentitySubsystem::GetOSS()              const { return IOnlineSubsystem::Get(); }
-IOnlineIdentityPtr UEOSIdentitySubsystem::GetIdentityInterface() const { IOnlineSubsystem* OSS = GetOSS(); return OSS ? OSS->GetIdentityInterface() : nullptr; }
+IOnlineSubsystem* UEOSIdentitySubsystem::GetOSS() const
+{
+	return IOnlineSubsystem::Get();
+}
+
+IOnlineIdentityPtr UEOSIdentitySubsystem::GetIdentityInterface() const
+{
+	IOnlineSubsystem* OSS = GetOSS();
+	return OSS ? OSS->GetIdentityInterface() : nullptr;
+}

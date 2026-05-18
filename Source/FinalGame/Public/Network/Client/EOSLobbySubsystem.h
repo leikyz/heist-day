@@ -64,8 +64,15 @@ public:
 	UFUNCTION(BlueprintPure, Category = "EOS|Lobby")
 	TArray<FLobbyMemberInfo> GetCurrentMembers() const { return CurrentMembers; }
 
+	UFUNCTION(BlueprintPure, Category = "EOS Lobby")
+	bool GetIsInLobby() const { return bIsInLobby; }
+
 	UFUNCTION(BlueprintCallable, Category = "EOS|Lobby")
 	void BroadcastServerIP(const FString& ConnectionString);
+
+	UFUNCTION(BlueprintCallable, Category = "EOS Lobby")
+	void ResetLobbyForNextMatch();
+
 
 	UFUNCTION(BlueprintCallable, Category = "EOS|Lobby")
 	void SyncMatchmakingState(const FString& StatusMessage);
