@@ -13,6 +13,7 @@ Saved/
 # Build artifacts
 Build/*/FileOpenOrder/
 Build/
+/Builds/
 Platforms/
 # Logs, temp
 *.log
