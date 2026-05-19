@@ -23,6 +23,7 @@ void AHeistDayGameMode::BeginPlay()
         NotifyServerReady();
     }
 }
+
 void AHeistDayGameMode::OnServerReadyResponse(FHttpRequestPtr Request, FHttpResponsePtr Response, bool bWasSuccessful)
 {
     if (bWasSuccessful && Response.IsValid() && Response->GetResponseCode() == 200)
@@ -34,6 +35,7 @@ void AHeistDayGameMode::OnServerReadyResponse(FHttpRequestPtr Request, FHttpResp
         UE_LOG(LogTemp, Error, TEXT("[GameMode] Failed to notify Backend of Server Ready. Go Server might be down."));
     }
 }
+
 void AHeistDayGameMode::NotifyServerReady()
 {
     int32 ServerPort = GetWorld()->URL.Port;
@@ -117,18 +119,18 @@ bool AHeistDayGameMode::CheckAllThiefDead()
     return true;
 }
 
-void AHeistDayGameMode::HandlePlayerDamage(AController* Victim, AController* Attacker,float DamageAmount)
+void AHeistDayGameMode::HandlePlayerDamage(AController* Victim, AController* Attacker, float DamageAmount)
 {
     AHeistDayPlayerState* VictimPS = Victim->GetPlayerState<AHeistDayPlayerState>();
     AHeistDayPlayerState* AttackerPS = Attacker->GetPlayerState<AHeistDayPlayerState>();
-	AHeistDayGameState* GS = GetGameState<AHeistDayGameState>();
+    AHeistDayGameState* GS = GetGameState<AHeistDayGameState>();
     if (!VictimPS) return;
 
     float NewHealth = VictimPS->GetCurrentHealth() - DamageAmount;
     VictimPS->SetCurrentHealth(FMath::Max(0.f, NewHealth));
 
     UE_LOG(LogTemp, Warning, TEXT("[GameMode] %s took %.1f damage from %s, new health: %d"),
-		*Victim->GetName(), DamageAmount, Attacker ? *Attacker->GetName() : TEXT("Environment"), VictimPS->GetCurrentHealth());
+        *Victim->GetName(), DamageAmount, Attacker ? *Attacker->GetName() : TEXT("Environment"), VictimPS->GetCurrentHealth());
 
     if (VictimPS->IsDead())
     {
@@ -137,7 +139,7 @@ void AHeistDayGameMode::HandlePlayerDamage(AController* Victim, AController* Att
         if (GS->MatchPhase == EMatchPhase::FirstRound)
         {
             VictimPS->AddDeath(1);
-            ;
+
             if (AttackerPS)
             {
                 AttackerPS->AddKill(1);
@@ -150,7 +152,7 @@ void AHeistDayGameMode::HandlePlayerDamage(AController* Victim, AController* Att
         else if (GS->MatchPhase == EMatchPhase::SecondRound)
         {
             VictimPS->AddDeath(2);
-            ;
+
             if (AttackerPS)
             {
                 AttackerPS->AddKill(2);
@@ -158,22 +160,9 @@ void AHeistDayGameMode::HandlePlayerDamage(AController* Victim, AController* Att
             else
             {
                 UE_LOG(LogTemp, Warning, TEXT("[GameMode] %s killed by environment or unknown source."), *Victim->GetName());
-			}
+            }
         }
-
     }
-
-    //if (!CheckAllThiefDead())
-    //{
-    //    UE_LOG(LogTemp, Warning, TEXT("[GameMode] Thiefs are still alive, round continues."));
-
-    //}
-    //else
-    //{
-    //    UE_LOG(LogTemp, Warning, TEXT("[GameMode] All thiefs are dead, round should end."));
-    //    GetWorldTimerManager().ClearTimer(RoundTimerHandle);
-    //    // Handle end of round logic here
-    //}
 }
 
 void AHeistDayGameMode::HandleChangePlayerHealthValue(AController* Victim, int32 NewHealth)
@@ -185,15 +174,10 @@ void AHeistDayGameMode::HandleChangePlayerHealthValue(AController* Victim, int32
     {
         UE_LOG(LogTemp, Warning, TEXT("[HandleChangePlayerHealthValue] Try to set invalid health value (%d) for %s"), NewHealth, *Victim->GetName());
         return;
-	}
+    }
 
     PS->SetCurrentHealth(NewHealth);
 }
-
-//void AHeistDayGameMode::HandlePlayerDeath(AController* Victim)
-//{
-//    
-//}
 
 void AHeistDayGameMode::PostLogin(APlayerController* NewPlayer)
 {
@@ -202,26 +186,10 @@ void AHeistDayGameMode::PostLogin(APlayerController* NewPlayer)
     AHeistDayPlayerState* PS = NewPlayer->GetPlayerState<AHeistDayPlayerState>();
     if (!PS || !CachedGameState)
     {
-        Super::PostLogin(NewPlayer); 
+        Super::PostLogin(NewPlayer);
         return;
     }
     int32 AssignedTeamId = (ConnectedCount % 2 != 0) ? 1 : 2;
-
-   /* UGameInstance* GI = GetGameInstance();
-    if (GI)
-    {
-        UEOSMatchmakingSubsystem* MatchmakingSubsystem = GI->GetSubsystem<UEOSMatchmakingSubsystem>();
-
-        if (MatchmakingSubsystem)
-        {
-            if (MatchmakingSubsystem->PendingTeamID != -1)
-                AssignedTeamId = MatchmakingSubsystem->PendingTeamID;
-        }
-        else
-        {
-            UE_LOG(LogTemp, Warning, TEXT("[GameMode] EOSMatchmakingSubsystem not found, using default team assignment."));
-        }
-    }*/
 
     PS->SetTeamId(AssignedTeamId);
 
@@ -262,9 +230,8 @@ void AHeistDayGameMode::PostLogin(APlayerController* NewPlayer)
         NewPlayer->StartSpot = InitialStart;
         UE_LOG(LogTemp, Warning, TEXT("[GameMode] StartSpot initialisé à %s pour %s"), *InitialStart->GetName(), *NewPlayer->GetName());
     }
-
-   
 }
+
 void AHeistDayGameMode::StartRound(int roundNumber)
 {
     UsedPlayerStarts.Empty();
@@ -277,8 +244,8 @@ void AHeistDayGameMode::StartRound(int roundNumber)
     {
     case 1:
         CachedGameState->Server_SetMatchPhase(EMatchPhase::FirstRound);
-		break;
-	case 2:
+        break;
+    case 2:
         CachedGameState->Server_SetMatchPhase(EMatchPhase::SecondRound);
         break;
     default:
@@ -314,6 +281,7 @@ void AHeistDayGameMode::OnClientReady()
             }, 1.0f, false);
     }
 }
+
 void AHeistDayGameMode::ResetAllPlayersHealth()
 {
     if (!CachedGameState) return;
@@ -381,12 +349,8 @@ void AHeistDayGameMode::OnRoundTimerExpired()
 
         GetWorldTimerManager().SetTimer(RoundTimerHandle, [this]()
             {
-                //SwapAllTeamsRoles();
-
                 TeleportPlayersToNewSpawns();
-
                 ResetAllPlayersHealth();
-
                 ResetCarryables();
 
                 CachedGameState->Server_SetRemainingTime(14.0f);
@@ -405,7 +369,7 @@ void AHeistDayGameMode::OnRoundTimerExpired()
     {
         CachedGameState->Server_SetRemainingTime(6.0f);
         CachedGameState->Server_SetMatchPhase(EMatchPhase::SecondRoundEnd);
-		CachedGameState->Server_SetIsAlarming(false);
+        CachedGameState->Server_SetIsAlarming(false);
 
         UE_LOG(LogTemp, Warning, TEXT("[GameMode] Second round ended. Match should end or restart after delay."));
 
@@ -438,6 +402,7 @@ void AHeistDayGameMode::AwardThiefScore(int32 TeamId, int32 ScoreToAdd)
         AwardEmployeeScore(CachedGameState->GetOpposingTeamDataById(TeamId).TeamId, ScoreToAdd);
     }
 }
+
 void AHeistDayGameMode::SwapAllTeamsRoles()
 {
     if (!CachedGameState) return;
@@ -484,6 +449,7 @@ void AHeistDayGameMode::SwapAllTeamsRoles()
 
     UE_LOG(LogTemp, Warning, TEXT("[GameMode] SwapAllTeamsRoles: Terminé et broadcasté localement."));
 }
+
 void AHeistDayGameMode::AwardEmployeeScore(int32 TeamId, int32 ScoreToAdd)
 {
     FTeamData* ModifiedTeam = nullptr;
@@ -535,8 +501,27 @@ void AHeistDayGameMode::SaveCarryablesInitialState()
         UE_LOG(LogTemp, Error, TEXT("[GameMode] KeycardBaseClass n'est pas assigné ! Mets BP_Keycard_Pickup dans le Blueprint du GameMode."));
     }
 
-    UE_LOG(LogTemp, Warning, TEXT("[GameMode] %d objets (Carryables + Keycards) sauvegardés au démarrage."), InitialCarryablesData.Num());
+    if (FracturableBaseClass)
+    {
+        for (TActorIterator<AActor> It(GetWorld(), FracturableBaseClass); It; ++It)
+        {
+            if (AActor* Item = *It)
+            {
+                FCarryableSpawnData Data;
+                Data.CarryableClass = Item->GetClass();
+                Data.InitialTransform = Item->GetActorTransform();
+                InitialCarryablesData.Add(Data);
+            }
+        }
+    }
+    else
+    {
+        UE_LOG(LogTemp, Error, TEXT("[GameMode] FracturableBaseClass n'est pas assigné !"));
+    }
+
+    UE_LOG(LogTemp, Warning, TEXT("[GameMode] %d objets (Carryables + Keycards + Fracturables) sauvegardés au démarrage."), InitialCarryablesData.Num());
 }
+
 void AHeistDayGameMode::NotifyMatchEndAndShutdown()
 {
     int32 ServerPort = GetWorld()->URL.Port;
@@ -566,6 +551,7 @@ void AHeistDayGameMode::OnMatchEndResponse(FHttpRequestPtr Request, FHttpRespons
 
     FGenericPlatformMisc::RequestExit(false);
 }
+
 void AHeistDayGameMode::ResetCarryables()
 {
     if (CarryableBaseClass)
@@ -590,6 +576,17 @@ void AHeistDayGameMode::ResetCarryables()
         }
     }
 
+    if (FracturableBaseClass)
+    {
+        for (TActorIterator<AActor> It(GetWorld(), FracturableBaseClass); It; ++It)
+        {
+            if (AActor* Item = *It)
+            {
+                Item->Destroy();
+            }
+        }
+    }
+
     FActorSpawnParameters SpawnParams;
     SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 
@@ -601,8 +598,9 @@ void AHeistDayGameMode::ResetCarryables()
         }
     }
 
-    UE_LOG(LogTemp, Warning, TEXT("[GameMode] %d objets (Carryables + Keycards) réinitialisés !"), InitialCarryablesData.Num());
+    UE_LOG(LogTemp, Warning, TEXT("[GameMode] %d objets (Carryables + Keycards + Fracturables) réinitialisés !"), InitialCarryablesData.Num());
 }
+
 void AHeistDayGameMode::SetAlarmTimer(float NewTime)
 {
     GetWorldTimerManager().SetTimer(

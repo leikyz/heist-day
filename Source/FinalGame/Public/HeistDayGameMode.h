@@ -45,6 +45,9 @@ public:
     UPROPERTY(EditDefaultsOnly, Category = "Round Reset")
     TSubclassOf<AActor> KeycardBaseClass;
 
+    UPROPERTY(EditDefaultsOnly, Category = "Round Reset")
+    TSubclassOf<AActor> FracturableBaseClass;
+
     void SaveCarryablesInitialState();
 
     UFUNCTION(BlueprintCallable)
@@ -66,11 +69,13 @@ public:
 
     void SetAlarmTimer(float NewTime);
 
+
+
     //void HandlePlayerDeath(AController* Victim);
 
 protected:
     UPROPERTY(EditDefaultsOnly, Category = "Round")
-    float RoundDuration = 20.f;
+    float RoundDuration = 45.f;
 
     UPROPERTY(EditDefaultsOnly, Category = "Round")
     int32 ExpectedPlayerCount = 2;
