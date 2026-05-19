@@ -42,9 +42,9 @@ void UEOSMatchmakingSubsystem::StartMatchmaking()
     UE_LOG(LogTemp, Warning, TEXT("[Matchmaking] Request body: %s"), *JsonString);
 
     TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Request = FHttpModule::Get().CreateRequest();
-   /* Request->SetURL(TEXT("http://104.194.157.137:8080/matchmake"));*/
+    Request->SetURL(TEXT("http://104.194.157.137:8080/matchmake"));
     //Request->SetURL(TEXT("http://127.0.0.1:8080/matchmake"));
-    Request->SetURL(TEXT("http://10.0.7.4:8080/matchmake"));
+   /* Request->SetURL(TEXT("http://10.0.7.4:8080/matchmake"));*/
     Request->SetVerb(TEXT("POST"));
     Request->SetHeader(TEXT("Content-Type"), TEXT("application/json"));
     Request->SetContentAsString(JsonString);

@@ -71,7 +71,7 @@ void AHeistDayGameState::Server_SetRemainingTime(float Seconds)
 
 void AHeistDayGameState::Server_SetMatchPhase(EMatchPhase NewPhase)
 {
-	UE_LOG(LogTemp, Warning, TEXT("[GameState] Server_SetMatchPhase called with new phase : %d"), static_cast<uint8>(NewPhase));
+    UE_LOG(LogTemp, Warning, TEXT("[GameState] Server_SetMatchPhase called with new phase : %d"), static_cast<uint8>(NewPhase));
     MatchPhase = NewPhase;
 }
 
@@ -98,7 +98,7 @@ void AHeistDayGameState::OnRep_GlobalMuseumValue()
 void AHeistDayGameState::OnRep_IsAlarming()
 {
     OnIsAlarmingChanged.Broadcast(bIsAlarming);
-}   
+}
 
 
 void AHeistDayGameState::OnRep_CurrentMatchData()
@@ -171,7 +171,7 @@ FTransform AHeistDayGameState::GetPlayerRespawnTransform(AController* Player)
 
 bool AHeistDayGameState::GetMatchWinner(FTeamData& OutWinner)
 {
-	const FTeamData& FirstTeam = CurrentMatchData.FirstTeam;
+    const FTeamData& FirstTeam = CurrentMatchData.FirstTeam;
     const FTeamData& SecondTeam = CurrentMatchData.SecondTeam;
 
     if (FirstTeam.ThiefScore > SecondTeam.ThiefScore)

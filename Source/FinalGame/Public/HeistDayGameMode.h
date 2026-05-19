@@ -57,7 +57,13 @@ public:
     void HandlePlayerDamage(AController* Victim, AController* Attacker, float DamageAmount);
 
     UFUNCTION(BlueprintCallable)
-	void HandleChangePlayerHealthValue(AController* Victim, int32 NewHealth); 
+    void HandleChangePlayerHealthValue(AController* Victim, int32 NewHealth);
+
+    UFUNCTION(BlueprintCallable, Category = "Match|Stats")
+    void HandlePlayerInterception(AController* Interceptor);
+
+    UFUNCTION(BlueprintCallable, Category = "Match|Stats")
+    void HandlePlayerRobbed(AController* Robber);
 
     UFUNCTION(BlueprintCallable, Category = "Match|Score")
     void AwardThiefScore(int32 TeamId, int32 ScoreToAdd);
@@ -86,13 +92,15 @@ private:
     void StartRound(int roundNumber);
     void OnRoundTimerExpired();
 
-	bool CheckAllThiefDead();
+    bool CheckAllThiefDead();
 
     void SwapAllTeamsRoles();
 
     void ResetAllPlayersHealth();
 
     void TeleportPlayersToNewSpawns();
+
+
 
     UPROPERTY()
     AHeistDayGameState* CachedGameState = nullptr;

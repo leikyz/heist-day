@@ -17,15 +17,15 @@ struct FRoundData
     GENERATED_BODY()
 
     UPROPERTY(BlueprintReadOnly, Category = "Stats")
-	int32 KillsCount = 0;
+    int32 KillsCount = 0;
     UPROPERTY(BlueprintReadOnly, Category = "Stats")
-	int32 DeathsCount = 0;
+    int32 DeathsCount = 0;
 
     UPROPERTY(BlueprintReadOnly, Category = "Stats")
-	int32 InterceptionsCount = 0;
+    int32 InterceptionsCount = 0;
 
     UPROPERTY(BlueprintReadOnly, Category = "Stats")
-	int32 robbedCount = 0;
+    int32 robbedCount = 0;
 
 };
 
@@ -46,16 +46,16 @@ public:
     FString GetEpicAccountName() const { return EpicAccountName; }
 
     UFUNCTION(BlueprintPure, Category = "Player")
-	int32 GetDeathsCount() const { return FirstRound.DeathsCount + SecondRound.DeathsCount; }
+    int32 GetDeathsCount() const { return FirstRound.DeathsCount + SecondRound.DeathsCount; }
 
     UFUNCTION(BlueprintPure, Category = "Player")
-	int32 GetKillsCount() const { return FirstRound.KillsCount + SecondRound.KillsCount; }
+    int32 GetKillsCount() const { return FirstRound.KillsCount + SecondRound.KillsCount; }
 
     UFUNCTION(BlueprintPure, Category = "Player")
-	int32 GetInterceptionsCount() const { return FirstRound.InterceptionsCount + SecondRound.InterceptionsCount; }
+    int32 GetInterceptionsCount() const { return FirstRound.InterceptionsCount + SecondRound.InterceptionsCount; }
 
     UFUNCTION(BlueprintPure, Category = "Player")
-	int32 GetRobbedCount() const { return FirstRound.robbedCount + SecondRound.robbedCount; }
+    int32 GetRobbedCount() const { return FirstRound.robbedCount + SecondRound.robbedCount; }
 
     UFUNCTION(BlueprintPure)
     int32 GetTeamId() const { return TeamId; }
@@ -64,26 +64,26 @@ public:
     ETeam GetTeam() const { return Team; }
 
     UFUNCTION(BlueprintPure)
-	FRoundData GetFirstRoundData() const { return FirstRound; }
+    FRoundData GetFirstRoundData() const { return FirstRound; }
 
     UFUNCTION(BlueprintPure)
-	FRoundData GetSecondRoundData() const { return SecondRound; }
+    FRoundData GetSecondRoundData() const { return SecondRound; }
 
-	UFUNCTION(BlueprintPure)
-	int32 GetPlayerIndex() const { return PlayerIndex; }
+    UFUNCTION(BlueprintPure)
+    int32 GetPlayerIndex() const { return PlayerIndex; }
 
 
-    UPROPERTY(ReplicatedUsing = OnRep_StatsChanged, BlueprintReadOnly, Category = "Stats") 
-        FRoundData FirstRound;
+    UPROPERTY(ReplicatedUsing = OnRep_StatsChanged, BlueprintReadOnly, Category = "Stats")
+    FRoundData FirstRound;
 
-    UPROPERTY(ReplicatedUsing = OnRep_StatsChanged, BlueprintReadOnly, Category = "Stats") 
-        FRoundData SecondRound;
+    UPROPERTY(ReplicatedUsing = OnRep_StatsChanged, BlueprintReadOnly, Category = "Stats")
+    FRoundData SecondRound;
 
-	UFUNCTION(BlueprintPure)
-	int32 GetCurrentHealth() const { return CurrentHealth; }
+    UFUNCTION(BlueprintPure)
+    int32 GetCurrentHealth() const { return CurrentHealth; }
 
-	UFUNCTION(BlueprintPure)
-	bool IsDead() const { return CurrentHealth <= 0; }
+    UFUNCTION(BlueprintPure)
+    bool IsDead() const { return CurrentHealth <= 0; }
 
     UPROPERTY(BlueprintAssignable, Category = "Events")
     FOnPlayerDamaged OnPlayerDamaged;
@@ -102,6 +102,8 @@ public:
     void SetEpicAccountName(const FString& InName) { EpicAccountName = InName; }
     void AddKill(int32 RoundNumber);
     void AddDeath(int32 RoundNumber);
+    void AddInterception(int32 RoundNumber);
+    void AddRobbed(int32 RoundNumber);
     UPROPERTY(Replicated, BlueprintReadOnly, Category = "Player")
     FString EpicAccountName;
 
@@ -128,7 +130,7 @@ private:
     void OnRep_TeamId();
 
     UFUNCTION()
-    void OnRep_CurrentHealth();
+    void OnRep_CurrentHealth(int32 OldHealth);
 
     UFUNCTION()
     void OnRep_StatsChanged();

@@ -84,7 +84,7 @@ public:
     void Server_SetEmployeeScore(int32 TeamId, int32 ScoreToAdd);
 
     UFUNCTION(BlueprintCallable, Category = "Match|Museum")
-	void Server_SetMuseumValue(int32 NewValue);
+    void Server_SetMuseumValue(int32 NewValue);
 
 
     UFUNCTION(BlueprintPure)
@@ -149,7 +149,7 @@ private:
     FMatchData CurrentMatchData;
 
     UPROPERTY(ReplicatedUsing = OnRep_IsAlarming)
-	bool bIsAlarming = false;
+    bool bIsAlarming = false;
 
     UFUNCTION()
     void OnRep_RemainingTime();

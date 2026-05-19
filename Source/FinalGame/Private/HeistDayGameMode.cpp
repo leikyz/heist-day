@@ -545,6 +545,50 @@ void AHeistDayGameMode::NotifyMatchEndAndShutdown()
     UE_LOG(LogTemp, Warning, TEXT("[GameMode] Sending /match_end on port %d. Initiating auto-destruction sequence..."), ServerPort);
 }
 
+void AHeistDayGameMode::HandlePlayerInterception(AController* Interceptor)
+{
+    if (!Interceptor) return;
+
+    AHeistDayPlayerState* PS = Interceptor->GetPlayerState<AHeistDayPlayerState>();
+    AHeistDayGameState* GS = GetGameState<AHeistDayGameState>();
+
+    if (PS && GS)
+    {
+        if (GS->GetMatchPhase() == EMatchPhase::FirstRound)
+        {
+            PS->AddInterception(1);
+            UE_LOG(LogTemp, Warning, TEXT("[GameMode] %s a fait une interception au Round 1!"), *Interceptor->GetName());
+        }
+        else if (GS->GetMatchPhase() == EMatchPhase::SecondRound)
+        {
+            PS->AddInterception(2);
+            UE_LOG(LogTemp, Warning, TEXT("[GameMode] %s a fait une interception au Round 2!"), *Interceptor->GetName());
+        }
+    }
+}
+
+void AHeistDayGameMode::HandlePlayerRobbed(AController* Robber)
+{
+    if (!Robber) return;
+
+    AHeistDayPlayerState* PS = Robber->GetPlayerState<AHeistDayPlayerState>();
+    AHeistDayGameState* GS = GetGameState<AHeistDayGameState>();
+
+    if (PS && GS)
+    {
+        if (GS->GetMatchPhase() == EMatchPhase::FirstRound)
+        {
+            PS->AddRobbed(1);
+            UE_LOG(LogTemp, Warning, TEXT("[GameMode] %s a volé du butin au Round 1!"), *Robber->GetName());
+        }
+        else if (GS->GetMatchPhase() == EMatchPhase::SecondRound)
+        {
+            PS->AddRobbed(2);
+            UE_LOG(LogTemp, Warning, TEXT("[GameMode] %s a volé du butin au Round 2!"), *Robber->GetName());
+        }
+    }
+}
+
 void AHeistDayGameMode::OnMatchEndResponse(FHttpRequestPtr Request, FHttpResponsePtr Response, bool bWasSuccessful)
 {
     UE_LOG(LogTemp, Warning, TEXT("[GameMode] Backend acknowledged Match End. Shutting down process. Goodbye!"));
