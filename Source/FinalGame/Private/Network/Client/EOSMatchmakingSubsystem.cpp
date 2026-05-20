@@ -5,7 +5,9 @@
 #include "Dom/JsonObject.h"
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
-#include <Network/Client/EOSIdentitySubsystem.h>
+#include "Network/Client/EOSIdentitySubsystem.h"
+
+#pragma region Matchmaking Flow
 
 void UEOSMatchmakingSubsystem::StartMatchmaking()
 {
@@ -21,18 +23,19 @@ void UEOSMatchmakingSubsystem::StartMatchmaking()
 
     TSharedPtr<FJsonObject> JsonObj = MakeShareable(new FJsonObject());
 
-    // A real, unique lobby id per matchmaking call.
-    JsonObj->SetStringField(TEXT("lobby_id"),
-        FGuid::NewGuid().ToString(EGuidFormats::DigitsWithHyphens));
+    // Generate a unique lobby ID per matchmaking call to track the session
+    JsonObj->SetStringField(TEXT("lobby_id"), FGuid::NewGuid().ToString(EGuidFormats::DigitsWithHyphens));
     JsonObj->SetNumberField(TEXT("player_count"), Members.Num());
 
-    // Send the EOS UniqueNetId of every lobby member so Go can build the teams map.
+    // Send the EOS UniqueNetId of every lobby member so the Go backend can build the teams map
     TArray<TSharedPtr<FJsonValue>> PlayerArray;
     PlayerArray.Reserve(Members.Num());
+
     for (const FLobbyMemberInfo& M : Members)
     {
         PlayerArray.Add(MakeShared<FJsonValueString>(M.UniqueIdString));
     }
+
     JsonObj->SetArrayField(TEXT("players"), PlayerArray);
 
     FString JsonString;
@@ -42,14 +45,15 @@ void UEOSMatchmakingSubsystem::StartMatchmaking()
     UE_LOG(LogTemp, Warning, TEXT("[Matchmaking] Request body: %s"), *JsonString);
 
     TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Request = FHttpModule::Get().CreateRequest();
+
+    // Custom Go Matchmaker endpoint
     Request->SetURL(TEXT("http://104.194.157.137:8080/matchmake"));
-    //Request->SetURL(TEXT("http://127.0.0.1:8080/matchmake"));
-   /* Request->SetURL(TEXT("http://10.0.7.4:8080/matchmake"));*/
     Request->SetVerb(TEXT("POST"));
     Request->SetHeader(TEXT("Content-Type"), TEXT("application/json"));
     Request->SetContentAsString(JsonString);
     Request->OnProcessRequestComplete().BindUObject(this, &UEOSMatchmakingSubsystem::OnMatchmakingResponse);
 
+    // Allow up to 2 minutes for the matchmaking ticket to resolve
     Request->SetTimeout(120.0f);
 
     LobbySub->SyncMatchmakingState(FString::Printf(TEXT("Searching... (%d/2)"), Members.Num()));
@@ -57,6 +61,10 @@ void UEOSMatchmakingSubsystem::StartMatchmaking()
     UE_LOG(LogTemp, Warning, TEXT("[Matchmaking] Sending request to Go backend with %d players..."), Members.Num());
     Request->ProcessRequest();
 }
+
+#pragma endregion
+
+#pragma region HTTP Callbacks
 
 void UEOSMatchmakingSubsystem::OnMatchmakingResponse(FHttpRequestPtr Request, FHttpResponsePtr Response, bool bWasSuccessful)
 {
@@ -74,16 +82,20 @@ void UEOSMatchmakingSubsystem::OnMatchmakingResponse(FHttpRequestPtr Request, FH
 
     TSharedPtr<FJsonObject> JsonResponse;
     TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Response->GetContentAsString());
+
     if (!FJsonSerializer::Deserialize(Reader, JsonResponse) || !JsonResponse.IsValid())
     {
         UE_LOG(LogTemp, Error, TEXT("[Matchmaking] Failed to parse JSON: %s"), *Response->GetContentAsString());
         return;
     }
 
+    // Cache the dedicated server IP returned by the backend
     PendingServerIP = JsonResponse->GetStringField(TEXT("ip"));
 
     FString TeamAssignmentsJson;
     const TSharedPtr<FJsonObject>* TeamsObj = nullptr;
+
+    // Parse team assignments if provided by the backend
     if (JsonResponse->TryGetObjectField(TEXT("teams"), TeamsObj) && TeamsObj && TeamsObj->IsValid())
     {
         TSharedRef<TJsonWriter<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>> Writer = TJsonWriterFactory<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>::Create(&TeamAssignmentsJson);
@@ -97,6 +109,7 @@ void UEOSMatchmakingSubsystem::OnMatchmakingResponse(FHttpRequestPtr Request, FH
                 FString MyNetIdString = LocalId->ToString();
                 FString LeftPart, RightPart;
 
+                // EOS IDs often contain a provider prefix, s plit to get the clean ID
                 if (MyNetIdString.Split(TEXT("|"), &LeftPart, &RightPart))
                 {
                     MyNetIdString = RightPart;
@@ -104,8 +117,9 @@ void UEOSMatchmakingSubsystem::OnMatchmakingResponse(FHttpRequestPtr Request, FH
 
                 int32 MyTeam = -1;
 
-                UE_LOG(LogTemp, Warning, TEXT("[Matchmaking DEBUG] Looking for CLEAN Local ID: '%s' in Teams JSON: %s"), *MyNetIdString, *TeamAssignmentsJson);
+                UE_LOG(LogTemp, Warning, TEXT("[Matchmaking DEBUG] Looking for Local ID: '%s' in Teams JSON: %s"), *MyNetIdString, *TeamAssignmentsJson);
 
+                // Safely extract the team ID whether it's formatted as a number or a string in the JSON
                 if (!(*TeamsObj)->TryGetNumberField(MyNetIdString, MyTeam))
                 {
                     FString MyTeamStr;
@@ -130,9 +144,9 @@ void UEOSMatchmakingSubsystem::OnMatchmakingResponse(FHttpRequestPtr Request, FH
 
     UE_LOG(LogTemp, Warning, TEXT("[Matchmaking] Raw teams map from Go: %s"), *TeamAssignmentsJson);
     UE_LOG(LogTemp, Warning, TEXT("[Matchmaking] Leader's own team resolved to: %d"), PendingTeamID);
-
     UE_LOG(LogTemp, Warning, TEXT("[Matchmaking] Match found — Server: %s | LocalTeam: %d"), *PendingServerIP, PendingTeamID);
 
+    // If the local player is the lobby leader, broadcast the server info to all clients in the lobby
     if (UEOSLobbySubsystem* LobbySub = GetGameInstance()->GetSubsystem<UEOSLobbySubsystem>())
     {
         if (LobbySub->IsLobbyLeader())
@@ -142,3 +156,5 @@ void UEOSMatchmakingSubsystem::OnMatchmakingResponse(FHttpRequestPtr Request, FH
         }
     }
 }
+
+#pragma endregion
