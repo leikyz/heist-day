@@ -83,7 +83,7 @@ public:
 
 protected:
     UPROPERTY(EditDefaultsOnly, Category = "Round")
-    float RoundDuration = 30.f;
+    float RoundDuration = 60.f;
 
     UPROPERTY(EditDefaultsOnly, Category = "Round")
     int32 ExpectedPlayerCount = 2;
@@ -102,7 +102,9 @@ private:
 
     void TeleportPlayersToNewSpawns();
 
+    int32 GetNumValidPlayerStarts() const;
 
+    void NotifyServerReadyWithRetry();
 
     UPROPERTY()
     AHeistDayGameState* CachedGameState = nullptr;

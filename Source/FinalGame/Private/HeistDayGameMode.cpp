@@ -25,6 +25,60 @@ void AHeistDayGameMode::BeginPlay()
     }
 }
 
+void AHeistDayGameMode::NotifyServerReady()
+{
+    if (GetNumValidPlayerStarts() <= 0)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[GameMode] PlayerStarts are not detected. Retrying in 1s..."));
+
+        FTimerHandle RetryHandle;
+        GetWorldTimerManager().SetTimer(RetryHandle, this, &AHeistDayGameMode::NotifyServerReady, 1.0f, false);
+        return;
+    }
+
+    int32 ServerPort = GetWorld()->URL.Port;
+    FParse::Value(FCommandLine::Get(), TEXT("port="), ServerPort);
+
+    TSharedPtr<FJsonObject> JsonObj = MakeShareable(new FJsonObject());
+    JsonObj->SetNumberField(TEXT("server_port"), ServerPort);
+
+    FString JsonString;
+    TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&JsonString);
+    FJsonSerializer::Serialize(JsonObj.ToSharedRef(), Writer);
+
+    TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Request = FHttpModule::Get().CreateRequest();
+    Request->SetURL(TEXT("http://104.194.157.137:8080/server_ready"));
+    Request->SetVerb(TEXT("POST"));
+    Request->SetHeader(TEXT("Content-Type"), TEXT("application/json"));
+    Request->SetContentAsString(JsonString);
+    Request->OnProcessRequestComplete().BindUObject(this, &AHeistDayGameMode::OnServerReadyResponse);
+    Request->ProcessRequest();
+}
+
+int32 AHeistDayGameMode::GetNumValidPlayerStarts() const
+{
+    int32 Count = 0;
+    for (TActorIterator<APlayerStart> It(GetWorld()); It; ++It)
+    {
+        Count++;
+    }
+    return Count;
+}
+
+void AHeistDayGameMode::NotifyServerReadyWithRetry()
+{
+    if (GetNumValidPlayerStarts() > 0)
+    {
+        NotifyServerReady();
+    }
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[GameMode] PlayerStarts are not ready. Retrying in 1s..."));
+
+        FTimerHandle RetryHandle;
+        GetWorldTimerManager().SetTimer(RetryHandle, this, &AHeistDayGameMode::NotifyServerReadyWithRetry, 1.0f, false);
+    }
+}
 void AHeistDayGameMode::OnServerReadyResponse(FHttpRequestPtr Request, FHttpResponsePtr Response, bool bWasSuccessful)
 {
     if (bWasSuccessful && Response.IsValid() && Response->GetResponseCode() == 200)
@@ -37,28 +91,6 @@ void AHeistDayGameMode::OnServerReadyResponse(FHttpRequestPtr Request, FHttpResp
     }
 }
 
-void AHeistDayGameMode::NotifyServerReady()
-{
-    int32 ServerPort = GetWorld()->URL.Port;
-    FParse::Value(FCommandLine::Get(), TEXT("port="), ServerPort);
-
-    TSharedPtr<FJsonObject> JsonObj = MakeShareable(new FJsonObject());
-    JsonObj->SetNumberField(TEXT("server_port"), ServerPort);
-
-    FString JsonString;
-    TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&JsonString);
-    FJsonSerializer::Serialize(JsonObj.ToSharedRef(), Writer);
-
-    TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Request = FHttpModule::Get().CreateRequest();
-    Request->SetURL(TEXT("http://127.0.0.1:8080/server_ready"));
-    Request->SetVerb(TEXT("POST"));
-    Request->SetHeader(TEXT("Content-Type"), TEXT("application/json"));
-    Request->SetContentAsString(JsonString);
-    Request->OnProcessRequestComplete().BindUObject(this, &AHeistDayGameMode::OnServerReadyResponse);
-    Request->ProcessRequest();
-
-    UE_LOG(LogTemp, Warning, TEXT("[GameMode] Sending /server_ready with port %d"), ServerPort);
-}
 
 AActor* AHeistDayGameMode::ChoosePlayerStart_Implementation(AController* Player)
 {
