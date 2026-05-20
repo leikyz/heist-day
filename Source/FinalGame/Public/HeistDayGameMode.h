@@ -83,10 +83,10 @@ public:
 
 protected:
     UPROPERTY(EditDefaultsOnly, Category = "Round")
-    float RoundDuration = 60.f;
+    float RoundDuration = 300.f;
 
     UPROPERTY(EditDefaultsOnly, Category = "Round")
-    int32 ExpectedPlayerCount = 2;
+    int32 ExpectedPlayerCount = 4;
     int32 ReadyPlayersCount = 0;
 
 
