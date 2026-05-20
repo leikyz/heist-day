@@ -430,10 +430,17 @@ void UEOSLobbySubsystem::RefreshMemberList()
 
 	if (!FoundServerIP.IsEmpty() && !bHasStartedTeleport)
 	{
+		// ANTI RACE CONDITION : On bloque le teleport tant que le JSON n'est pas répliqué
+		if (TeamAssignmentsJson.IsEmpty())
+		{
+			UE_LOG(LogTemp, Warning, TEXT("[Lobby] Server IP found, but waiting for TeamAssignmentsJson to replicate..."));
+			return;
+		}
+
 		UEOSMatchmakingSubsystem* MatchSub = GetGameInstance()->GetSubsystem<UEOSMatchmakingSubsystem>();
 		UEOSIdentitySubsystem* IDSub = GetGameInstance()->GetSubsystem<UEOSIdentitySubsystem>();
 
-		if (MatchSub && IDSub && !TeamAssignmentsJson.IsEmpty())
+		if (MatchSub && IDSub)
 		{
 			TSharedPtr<FJsonObject> JsonObject;
 			TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(TeamAssignmentsJson);
@@ -441,8 +448,25 @@ void UEOSLobbySubsystem::RefreshMemberList()
 			if (FJsonSerializer::Deserialize(Reader, JsonObject))
 			{
 				FString MyNetId = IDSub->GetLocalUserId().GetUniqueNetId()->ToString();
+				FString LeftPart, RightPart;
+
+				if (MyNetId.Split(TEXT("|"), &LeftPart, &RightPart))
+				{
+					MyNetId = RightPart;
+				}
+
 				int32 MyTeam = 0;
-				if (JsonObject->TryGetNumberField(MyNetId, MyTeam))
+
+				if (!JsonObject->TryGetNumberField(MyNetId, MyTeam))
+				{
+					FString MyTeamStr;
+					if (JsonObject->TryGetStringField(MyNetId, MyTeamStr))
+					{
+						MyTeam = FCString::Atoi(*MyTeamStr);
+					}
+				}
+
+				if (MyTeam > 0)
 				{
 					MatchSub->PendingTeamID = MyTeam;
 				}

@@ -9,6 +9,7 @@
 #include "Dom/JsonObject.h"
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
+#include "Kismet/GameplayStatics.h"
 #include <Network/Client/EOSMatchmakingSubsystem.h>
 
 void AHeistDayGameMode::BeginPlay()
@@ -189,9 +190,15 @@ void AHeistDayGameMode::PostLogin(APlayerController* NewPlayer)
         Super::PostLogin(NewPlayer);
         return;
     }
-    int32 AssignedTeamId = (ConnectedCount % 2 != 0) ? 1 : 2;
 
-    PS->SetTeamId(AssignedTeamId);
+    int32 AssignedTeamId = PS->GetTeamId();
+
+    if (AssignedTeamId <= 0)
+    {
+        AssignedTeamId = (ConnectedCount % 2 != 0) ? 1 : 2;
+        PS->SetTeamId(AssignedTeamId);
+        UE_LOG(LogTemp, Warning, TEXT("[GameMode] No Team in URL, fallback to AssignedTeamId %d"), AssignedTeamId);
+    }
 
     if (AssignedTeamId == 1)
     {
@@ -644,7 +651,27 @@ void AHeistDayGameMode::ResetCarryables()
 
     UE_LOG(LogTemp, Warning, TEXT("[GameMode] %d objets (Carryables + Keycards + Fracturables) réinitialisés !"), InitialCarryablesData.Num());
 }
+FString AHeistDayGameMode::InitNewPlayer(APlayerController* NewPlayerController, const FUniqueNetIdRepl& UniqueId, const FString& Options, const FString& Portal)
+{
+    FString ErrorMessage = Super::InitNewPlayer(NewPlayerController, UniqueId, Options, Portal);
 
+    if (AHeistDayPlayerState* PS = NewPlayerController->GetPlayerState<AHeistDayPlayerState>())
+    {
+        int32 ParsedTeamId = UGameplayStatics::GetIntOption(Options, TEXT("Team"), 0);
+
+        if (ParsedTeamId > 0)
+        {
+            PS->SetTeamId(ParsedTeamId);
+            UE_LOG(LogTemp, Warning, TEXT("[GameMode] Parsed TeamID %d from URL options for %s"), ParsedTeamId, *NewPlayerController->GetName());
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("[GameMode] Failed to parse TeamID from URL options: %s"), *Options);
+        }
+    }
+
+    return ErrorMessage;
+}
 void AHeistDayGameMode::SetAlarmTimer(float NewTime)
 {
     GetWorldTimerManager().SetTimer(

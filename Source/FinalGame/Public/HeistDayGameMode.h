@@ -39,6 +39,8 @@ public:
     void NotifyMatchEndAndShutdown();
     void OnMatchEndResponse(FHttpRequestPtr Request, FHttpResponsePtr Response, bool bWasSuccessful);
 
+    virtual FString InitNewPlayer(APlayerController* NewPlayerController, const FUniqueNetIdRepl& UniqueId, const FString& Options, const FString& Portal) override;
+
     UPROPERTY(EditDefaultsOnly, Category = "Round Reset")
     TSubclassOf<AActor> CarryableBaseClass;
 
@@ -81,7 +83,7 @@ public:
 
 protected:
     UPROPERTY(EditDefaultsOnly, Category = "Round")
-    float RoundDuration = 60.f;
+    float RoundDuration = 30.f;
 
     UPROPERTY(EditDefaultsOnly, Category = "Round")
     int32 ExpectedPlayerCount = 2;

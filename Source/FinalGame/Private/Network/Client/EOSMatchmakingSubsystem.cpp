@@ -80,28 +80,45 @@ void UEOSMatchmakingSubsystem::OnMatchmakingResponse(FHttpRequestPtr Request, FH
         return;
     }
 
-    // Server IP
     PendingServerIP = JsonResponse->GetStringField(TEXT("ip"));
 
-    // Per-player team assignments: { "<UniqueNetId>": <teamId>, ... }
     FString TeamAssignmentsJson;
     const TSharedPtr<FJsonObject>* TeamsObj = nullptr;
     if (JsonResponse->TryGetObjectField(TEXT("teams"), TeamsObj) && TeamsObj && TeamsObj->IsValid())
     {
-        // Re-serialize the teams object so we can stash it in EOS session settings
-        TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&TeamAssignmentsJson);
-        FJsonSerializer::Serialize(TeamsObj->ToSharedRef(), Writer);
+        TSharedRef<TJsonWriter<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>> Writer = TJsonWriterFactory<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>::Create(&TeamAssignmentsJson);
+        FJsonSerializer::Serialize((*TeamsObj).ToSharedRef(), Writer);
 
-        // Cache the leader's own team locally right away (clients will read theirs via RefreshMemberList)
         if (UEOSIdentitySubsystem* ID = GetGameInstance()->GetSubsystem<UEOSIdentitySubsystem>())
         {
             TSharedPtr<const FUniqueNetId> LocalId = ID->GetLocalUserId().GetUniqueNetId();
             if (LocalId.IsValid())
             {
+                FString MyNetIdString = LocalId->ToString();
+                FString LeftPart, RightPart;
+
+                if (MyNetIdString.Split(TEXT("|"), &LeftPart, &RightPart))
+                {
+                    MyNetIdString = RightPart;
+                }
+
                 int32 MyTeam = -1;
-                if ((*TeamsObj)->TryGetNumberField(LocalId->ToString(), MyTeam))
+
+                UE_LOG(LogTemp, Warning, TEXT("[Matchmaking DEBUG] Looking for CLEAN Local ID: '%s' in Teams JSON: %s"), *MyNetIdString, *TeamAssignmentsJson);
+
+                if (!(*TeamsObj)->TryGetNumberField(MyNetIdString, MyTeam))
+                {
+                    FString MyTeamStr;
+                    if ((*TeamsObj)->TryGetStringField(MyNetIdString, MyTeamStr))
+                    {
+                        MyTeam = FCString::Atoi(*MyTeamStr);
+                    }
+                }
+
+                if (MyTeam > 0)
                 {
                     PendingTeamID = MyTeam;
+                    UE_LOG(LogTemp, Warning, TEXT("[Matchmaking] Success! Assigned to team: %d"), PendingTeamID);
                 }
             }
         }
