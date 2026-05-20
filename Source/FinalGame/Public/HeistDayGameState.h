@@ -5,164 +5,186 @@
 #include "HeistDayPlayerState.h"
 #include "HeistDayGameState.generated.h"
 
-
+#pragma region Enums & Structs
 
 UENUM(BlueprintType)
 enum class EMatchPhase : uint8
 {
-    WaitingForPlayers,
-    FirstRoundStart,
-    FirstRound,
-    FirstRoundEnd,
-    SecondRoundStart,
-    SecondRound,
-    SecondRoundEnd,
-    MatchEnd
+	WaitingForPlayers,
+	FirstRoundStart,
+	FirstRound,
+	FirstRoundEnd,
+	SecondRoundStart,
+	SecondRound,
+	SecondRoundEnd,
+	MatchEnd
 };
 
 USTRUCT(BlueprintType)
 struct FTeamData
 {
-    GENERATED_BODY()
+	GENERATED_BODY()
 
-    UPROPERTY(BlueprintReadOnly)
-    int32 TeamId = 0;
+	UPROPERTY(BlueprintReadOnly)
+	int32 TeamId = 0;
 
-    UPROPERTY(BlueprintReadOnly)
-    ETeam Team = ETeam::None;
+	UPROPERTY(BlueprintReadOnly)
+	ETeam Team = ETeam::None;
 
-    UPROPERTY(BlueprintReadOnly)
-    TArray<AHeistDayPlayerState*> Players;
+	UPROPERTY(BlueprintReadOnly)
+	TArray<AHeistDayPlayerState*> Players;
 
-    UPROPERTY(BlueprintReadOnly)
-    int32 ThiefScore = 0;
+	UPROPERTY(BlueprintReadOnly)
+	int32 ThiefScore = 0;
 
-    UPROPERTY(BlueprintReadOnly)
-    int32 EmployeeScore = 10000;
+	UPROPERTY(BlueprintReadOnly)
+	int32 EmployeeScore = 10000;
 };
 
 USTRUCT(BlueprintType)
 struct FMatchData
 {
-    GENERATED_BODY()
+	GENERATED_BODY()
 
-    UPROPERTY(BlueprintReadOnly)
-    FTeamData FirstTeam;
+	UPROPERTY(BlueprintReadOnly)
+	FTeamData FirstTeam;
 
-    UPROPERTY(BlueprintReadOnly)
-    FTeamData SecondTeam;
+	UPROPERTY(BlueprintReadOnly)
+	FTeamData SecondTeam;
 
-    FTeamData MatchWinnerTeam;
+	FTeamData MatchWinnerTeam;
 };
+
+#pragma endregion
+
+#pragma region Delegates
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnMatchPhaseChanged, EMatchPhase, NewPhase);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnRemainingTimeChanged, float, RemainingSeconds);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnTeamValueChanged, FTeamData, TeamData);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnMuseumValueChanged, int32, NewValue);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnIsAlarmingChanged, bool, bIsAlarming);
+
+#pragma endregion
+
 UCLASS()
 class FINALGAME_API AHeistDayGameState : public AGameState
 {
-    GENERATED_BODY()
+	GENERATED_BODY()
 
 public:
-    AHeistDayGameState();
 
-    friend class AHeistDayGameMode;
+#pragma region Lifecycle
 
-    virtual void GetLifetimeReplicatedProps(
-        TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+	AHeistDayGameState();
 
-    virtual void Tick(float DeltaSeconds) override;
+	friend class AHeistDayGameMode;
 
-    void Server_SetRemainingTime(float Seconds);
-    void Server_SetMatchPhase(EMatchPhase NewPhase);
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+	virtual void Tick(float DeltaSeconds) override;
 
-    UFUNCTION(BlueprintCallable)
-    void Server_SetIsAlarming(bool bNewIsAlarming);
-    void Server_SetThiefScore(int32 TeamId, int32 ScoreToAdd);
-    void Server_SetEmployeeScore(int32 TeamId, int32 ScoreToAdd);
+#pragma endregion
 
-    UFUNCTION(BlueprintCallable, Category = "Match|Museum")
-    void Server_SetMuseumValue(int32 NewValue);
+#pragma region Server API
 
+	void Server_SetRemainingTime(float Seconds);
+	void Server_SetMatchPhase(EMatchPhase NewPhase);
+	void Server_SetThiefScore(int32 TeamId, int32 ScoreToAdd);
+	void Server_SetEmployeeScore(int32 TeamId, int32 ScoreToAdd);
 
-    UFUNCTION(BlueprintPure)
-    float GetRemainingTime() const { return RemainingTime; }
+	UFUNCTION(BlueprintCallable)
+	void Server_SetIsAlarming(bool bNewIsAlarming);
 
-    UFUNCTION(BlueprintCallable, Category = "Match|Respawn")
-    FTransform GetPlayerRespawnTransform(AController* Player);
+	UFUNCTION(BlueprintCallable, Category = "Match|Museum")
+	void Server_SetMuseumValue(int32 NewValue);
 
-    UFUNCTION(BlueprintPure, Category = "Match")
-    FMatchData GetCurrentMatchData() const { return CurrentMatchData; }
+#pragma endregion
 
-    UFUNCTION(BlueprintPure)
-    EMatchPhase GetMatchPhase() const { return MatchPhase; }
+#pragma region Getters & Helpers
 
-    // Events
-    UPROPERTY(BlueprintAssignable)
-    FOnMatchPhaseChanged OnMatchPhaseChanged;
+	UFUNCTION(BlueprintPure)
+	float GetRemainingTime() const { return RemainingTime; }
 
-    UPROPERTY(BlueprintAssignable)
-    FOnTeamValueChanged OnTeamValueChanged;
+	UFUNCTION(BlueprintCallable, Category = "Match|Respawn")
+	FTransform GetPlayerRespawnTransform(AController* Player);
 
-    UPROPERTY(BlueprintAssignable)
-    FOnRemainingTimeChanged OnRemainingTimeChanged;
+	UFUNCTION(BlueprintPure, Category = "Match")
+	FMatchData GetCurrentMatchData() const { return CurrentMatchData; }
 
-    UPROPERTY(BlueprintAssignable)
-    FOnIsAlarmingChanged OnIsAlarmingChanged;
+	UFUNCTION(BlueprintPure)
+	EMatchPhase GetMatchPhase() const { return MatchPhase; }
 
-    UPROPERTY(BlueprintAssignable, Category = "Match|Museum")
-    FOnMuseumValueChanged OnMuseumValueChanged;
+	UFUNCTION(BlueprintPure, Category = "Match")
+	FTeamData GetTeamDataById(int32 TeamId) const;
 
-    UFUNCTION(BlueprintPure, Category = "Match")
-    FTeamData GetTeamDataById(int32 TeamId) const;
+	UFUNCTION(BlueprintPure, Category = "Match")
+	FTeamData GetOpposingTeamDataById(int32 TeamId) const;
 
-    UFUNCTION(BlueprintPure, Category = "Match")
-    FTeamData GetOpposingTeamDataById(int32 TeamId) const;
+	UFUNCTION(BlueprintPure, Category = "Match")
+	bool GetIsAlarming() const { return bIsAlarming; }
 
+	UFUNCTION(BlueprintCallable, Category = "Match")
+	bool GetMatchWinner(FTeamData& OutWinner);
 
-    UFUNCTION(BlueprintPure, Category = "Match")
-    bool GetIsAlarming() const { return bIsAlarming; }
+	UFUNCTION(BlueprintCallable, Category = "Match")
+	bool GetMatchLooser(FTeamData& OutLooser);
 
-    UFUNCTION(BlueprintCallable, Category = "Match")
-    bool GetMatchWinner(FTeamData& OutWinner);
+	UFUNCTION(BlueprintPure, Category = "Match|Museum")
+	int32 GetMuseumValue() const { return GlobalMuseumValue; }
 
+#pragma endregion
 
-    UFUNCTION(BlueprintCallable, Category = "Match")
-    bool GetMatchLooser(FTeamData& OutLooser);
+#pragma region Events
 
-    UFUNCTION(BlueprintPure, Category = "Match|Museum")
-    int32 GetMuseumValue() const { return GlobalMuseumValue; }
+	UPROPERTY(BlueprintAssignable)
+	FOnMatchPhaseChanged OnMatchPhaseChanged;
 
-    UPROPERTY(ReplicatedUsing = OnRep_GlobalMuseumValue)
-    int32 GlobalMuseumValue = 0;
+	UPROPERTY(BlueprintAssignable)
+	FOnTeamValueChanged OnTeamValueChanged;
+
+	UPROPERTY(BlueprintAssignable)
+	FOnRemainingTimeChanged OnRemainingTimeChanged;
+
+	UPROPERTY(BlueprintAssignable)
+	FOnIsAlarmingChanged OnIsAlarmingChanged;
+
+	UPROPERTY(BlueprintAssignable, Category = "Match|Museum")
+	FOnMuseumValueChanged OnMuseumValueChanged;
+
+#pragma endregion
+
+#pragma region Replicated Data
+
+	UPROPERTY(ReplicatedUsing = OnRep_GlobalMuseumValue)
+	int32 GlobalMuseumValue = 0;
 
 private:
-    UPROPERTY(ReplicatedUsing = OnRep_RemainingTime)
-    float RemainingTime = 0.f;
+	UPROPERTY(ReplicatedUsing = OnRep_RemainingTime)
+	float RemainingTime = 0.f;
 
-    UPROPERTY(ReplicatedUsing = OnRep_MatchPhase)
-    EMatchPhase MatchPhase = EMatchPhase::WaitingForPlayers;
+	UPROPERTY(ReplicatedUsing = OnRep_MatchPhase)
+	EMatchPhase MatchPhase = EMatchPhase::WaitingForPlayers;
 
-    UPROPERTY(ReplicatedUsing = OnRep_CurrentMatchData)
-    FMatchData CurrentMatchData;
+	UPROPERTY(ReplicatedUsing = OnRep_CurrentMatchData)
+	FMatchData CurrentMatchData;
 
-    UPROPERTY(ReplicatedUsing = OnRep_IsAlarming)
-    bool bIsAlarming = false;
+	UPROPERTY(ReplicatedUsing = OnRep_IsAlarming)
+	bool bIsAlarming = false;
 
-    UFUNCTION()
-    void OnRep_RemainingTime();
+	UFUNCTION()
+	void OnRep_RemainingTime();
 
-    UFUNCTION()
-    void OnRep_MatchPhase();
+	UFUNCTION()
+	void OnRep_MatchPhase();
 
-    UFUNCTION()
-    void OnRep_CurrentMatchData();
+	UFUNCTION()
+	void OnRep_CurrentMatchData();
 
-    UFUNCTION()
-    void OnRep_GlobalMuseumValue();
+	UFUNCTION()
+	void OnRep_GlobalMuseumValue();
 
-    UFUNCTION()
-    void OnRep_IsAlarming();
+	UFUNCTION()
+	void OnRep_IsAlarming();
+
+#pragma endregion
 };

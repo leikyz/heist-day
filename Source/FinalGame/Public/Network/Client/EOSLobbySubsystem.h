@@ -37,21 +37,56 @@ class FINALGAME_API UEOSLobbySubsystem : public UGameInstanceSubsystem
 	GENERATED_BODY()
 
 public:
+#pragma region Initialization
+
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	virtual void Deinitialize() override;
 
+	// Resets lobby state variables for a new match while keeping players grouped
+	UFUNCTION(BlueprintCallable, Category = "EOS Lobby")
+	void ResetLobbyForNextMatch();
+
+#pragma endregion
+
+#pragma region Lobby API
+
+	// Creates a new Party Lobby via EOS Sessions
 	UFUNCTION(BlueprintCallable, Category = "EOS|Lobby")
 	void CreateOwnLobby();
 
+	// Joins an existing lobby from a search result or invite
 	UFUNCTION(BlueprintCallable, Category = "EOS|Lobby")
 	void JoinLobby(const FBlueprintSessionResult& SearchResult);
 
+	// Leaves and destroys the current lobby session
 	UFUNCTION(BlueprintCallable, Category = "EOS|Lobby")
 	void LeaveLobby();
 
+	// Broadcasts the dedicated server IP to all clients in the lobby
+	UFUNCTION(BlueprintCallable, Category = "EOS|Lobby")
+	void BroadcastServerIP(const FString& ConnectionString);
+
+	// Broadcasts server IP along with team assignment data
+	UFUNCTION(BlueprintCallable, Category = "EOS|Lobby")
+	void BroadcastMatchInfo(const FString& ConnectionString, const FString& TeamAssignmentsJson);
+
+	// Syncs the current matchmaking state message to clients
+	UFUNCTION(BlueprintCallable, Category = "EOS|Lobby")
+	void SyncMatchmakingState(const FString& StatusMessage);
+
+	// Opens the Epic Social Overlay for invites and friends
+	UFUNCTION(BlueprintCallable, Category = "EOS|Overlay")
+	void ShowEpicOverlay();
+
+#pragma endregion
+
+#pragma region Player State
+
+	// Updates the local player's readiness state and pushes it via Presence
 	UFUNCTION(BlueprintCallable, Category = "EOS|Lobby")
 	void SetLocalPlayerReady(bool bReady);
 
+	// Checks if all current lobby members have set their state to ready
 	UFUNCTION(BlueprintPure, Category = "EOS|Lobby")
 	bool AreAllPlayersReady() const;
 
@@ -67,15 +102,9 @@ public:
 	UFUNCTION(BlueprintPure, Category = "EOS Lobby")
 	bool GetIsInLobby() const { return bIsInLobby; }
 
-	UFUNCTION(BlueprintCallable, Category = "EOS|Lobby")
-	void BroadcastServerIP(const FString& ConnectionString);
+#pragma endregion
 
-	UFUNCTION(BlueprintCallable, Category = "EOS Lobby")
-	void ResetLobbyForNextMatch();
-
-
-	UFUNCTION(BlueprintCallable, Category = "EOS|Lobby")
-	void SyncMatchmakingState(const FString& StatusMessage);
+#pragma region Events
 
 	UPROPERTY(BlueprintAssignable, Category = "EOS|Lobby")
 	FOnLobbyCreated OnLobbyCreated;
@@ -98,12 +127,11 @@ public:
 	UFUNCTION()
 	void HandleMatchReadyToJoin(const FString& ConnectionString);
 
-	UFUNCTION(BlueprintCallable, Category = "EOS|Lobby")
-	void BroadcastMatchInfo(const FString& ConnectionString, const FString& TeamAssignmentsJson);
+#pragma endregion
 
-	UFUNCTION(BlueprintCallable, Category = "EOS|Overlay")
-	void ShowEpicOverlay();
+#pragma region Visuals
 
+	// Class used to represent players in the 3D lobby background
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Lobby Visuals")
 	TSubclassOf<AActor> AvatarActorClass;
 
@@ -111,8 +139,11 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Lobby Visuals")
 	TArray<FTransform> PlayerSpawnTransforms;
 
+#pragma endregion
+
 private:
-	// Session callbacks
+#pragma region Session Callbacks
+
 	void HandleCreateSessionComplete(FName SessionName, bool bWasSuccessful);
 	void HandleJoinSessionComplete(FName SessionName, EOnJoinSessionCompleteResult::Type Result);
 	void HandleDestroySessionComplete(FName SessionName, bool bWasSuccessful);
@@ -120,20 +151,33 @@ private:
 	void HandleSessionParticipantLeft(FName SessionName, const FUniqueNetId& UniqueId, EOnSessionParticipantLeftReason Reason);
 	void HandleSessionUserInviteAccepted(const bool bWasSuccessful, const int32 ControllerId, FUniqueNetIdPtr UserId, const FOnlineSessionSearchResult& InviteResult);
 	void HandleSessionSettingsUpdated(FName SessionName, const FOnlineSessionSettings& UpdatedSettings);
-	// Presence callbacks
+
+#pragma endregion
+
+#pragma region Presence Callbacks
+
 	void HandlePresenceReceived(const FUniqueNetId& UserId, const TSharedRef<FOnlineUserPresence>& Presence);
 	void HandleSetPresenceComplete(const FUniqueNetId& UserId, const bool bWasSuccessful);
+	void HandleQueryPresenceComplete(const FUniqueNetId& UserId, const bool bWasSuccessful);
 
-	// Internal helpers
+#pragma endregion
+
+#pragma region Internal Helpers
+
 	void RefreshMemberList();
 	void UpdatePresenceData();
 	void UpdateLobbyGlobalData();
-	// Queries presence for all peers so their display names are cached on the joining client
 	void QueryPresenceForTrackedUsers();
-	void HandleQueryPresenceComplete(const FUniqueNetId& UserId, const bool bWasSuccessful);
 
 	IOnlineSubsystem* GetOSS() const;
 	IOnlineSessionPtr GetSessionInterface() const;
+
+	void UpdateLobbyAvatars();
+	void ClearLobbyAvatars();
+
+#pragma endregion
+
+#pragma region Cached Data
 
 	TArray<FLobbyMemberInfo> CurrentMembers;
 	TArray<FUniqueNetIdPtr> TrackedUserIds;
@@ -163,8 +207,7 @@ private:
 
 	TArray<TWeakObjectPtr<AActor>> SpawnedAvatars;
 
-	void UpdateLobbyAvatars();
-	void ClearLobbyAvatars();
-
 	static const FName LobbySessionName;
+
+#pragma endregion
 };

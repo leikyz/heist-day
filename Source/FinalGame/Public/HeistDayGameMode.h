@@ -11,112 +11,141 @@
 USTRUCT(BlueprintType)
 struct FCarryableSpawnData
 {
-    GENERATED_BODY()
+	GENERATED_BODY()
 
-    UPROPERTY()
-    TSubclassOf<AActor> CarryableClass;
+	UPROPERTY()
+	TSubclassOf<AActor> CarryableClass;
 
-    UPROPERTY()
-    FTransform InitialTransform;
+	UPROPERTY()
+	FTransform InitialTransform;
 };
 
 UCLASS()
-class FINALGAME_API  AHeistDayGameMode : public AGameMode
+class FINALGAME_API AHeistDayGameMode : public AGameMode
 {
-    GENERATED_BODY()
+	GENERATED_BODY()
 
 public:
-    virtual void PostLogin(APlayerController* NewPlayer) override;
 
-    virtual bool ShouldSpawnAtStartSpot(AController* Player) override { return false; }
+#pragma region Lifecycle & Connection
 
-    virtual AActor* ChoosePlayerStart_Implementation(AController* Player) override;
-    virtual void BeginPlay() override;
+	virtual void BeginPlay() override;
+	virtual FString InitNewPlayer(APlayerController* NewPlayerController, const FUniqueNetIdRepl& UniqueId, const FString& Options, const FString& Portal) override;
+	virtual void PostLogin(APlayerController* NewPlayer) override;
+	void OnClientReady();
 
-    void NotifyServerReady();
-    void OnServerReadyResponse(FHttpRequestPtr Request, FHttpResponsePtr Response, bool bWasSuccessful);
+#pragma endregion
 
-    void NotifyMatchEndAndShutdown();
-    void OnMatchEndResponse(FHttpRequestPtr Request, FHttpResponsePtr Response, bool bWasSuccessful);
+#pragma region Backend Communication
 
-    virtual FString InitNewPlayer(APlayerController* NewPlayerController, const FUniqueNetIdRepl& UniqueId, const FString& Options, const FString& Portal) override;
+	// Notifies the custom Go backend that the dedicated server has loaded the map and is ready for players
+	void NotifyServerReady();
+	void OnServerReadyResponse(FHttpRequestPtr Request, FHttpResponsePtr Response, bool bWasSuccessful);
 
-    UPROPERTY(EditDefaultsOnly, Category = "Round Reset")
-    TSubclassOf<AActor> CarryableBaseClass;
+	// Signals the backend that the match concluded, triggering server shutdown
+	void NotifyMatchEndAndShutdown();
+	void OnMatchEndResponse(FHttpRequestPtr Request, FHttpResponsePtr Response, bool bWasSuccessful);
 
-    UPROPERTY(EditDefaultsOnly, Category = "Round Reset")
-    TSubclassOf<AActor> KeycardBaseClass;
+#pragma endregion
 
-    UPROPERTY(EditDefaultsOnly, Category = "Round Reset")
-    TSubclassOf<AActor> FracturableBaseClass;
+#pragma region Spawning & Environment Reset
 
-    void SaveCarryablesInitialState();
+	virtual bool ShouldSpawnAtStartSpot(AController* Player) override { return false; }
+	virtual AActor* ChoosePlayerStart_Implementation(AController* Player) override;
 
-    UFUNCTION(BlueprintCallable)
-    void ResetCarryables();
+	UPROPERTY(EditDefaultsOnly, Category = "Round Reset")
+	TSubclassOf<AActor> CarryableBaseClass;
 
-    UFUNCTION(BlueprintCallable)
-    void HandlePlayerDamage(AController* Victim, AController* Attacker, float DamageAmount);
+	UPROPERTY(EditDefaultsOnly, Category = "Round Reset")
+	TSubclassOf<AActor> KeycardBaseClass;
 
-    UFUNCTION(BlueprintCallable)
-    void HandleChangePlayerHealthValue(AController* Victim, int32 NewHealth);
+	UPROPERTY(EditDefaultsOnly, Category = "Round Reset")
+	TSubclassOf<AActor> FracturableBaseClass;
 
-    UFUNCTION(BlueprintCallable, Category = "Match|Stats")
-    void HandlePlayerInterception(AController* Interceptor);
+	// Caches the initial transforms of interactable actors to respawn them perfectly at halftime
+	void SaveCarryablesInitialState();
 
-    UFUNCTION(BlueprintCallable, Category = "Match|Stats")
-    void HandlePlayerRobbed(AController* Robber);
+	UFUNCTION(BlueprintCallable)
+	void ResetCarryables();
 
-    UFUNCTION(BlueprintCallable, Category = "Match|Score")
-    void AwardThiefScore(int32 TeamId, int32 ScoreToAdd);
+#pragma endregion
 
-    UFUNCTION(BlueprintCallable, Category = "Match|Score")
-    void AwardEmployeeScore(int32 TeamId, int32 ScoreToAdd);
+#pragma region Combat & Stats Tracking
 
-    void OnClientReady();
+	UFUNCTION(BlueprintCallable)
+	void HandlePlayerDamage(AController* Victim, AController* Attacker, float DamageAmount);
 
-    void SetAlarmTimer(float NewTime);
+	UFUNCTION(BlueprintCallable)
+	void HandleChangePlayerHealthValue(AController* Victim, int32 NewHealth);
 
+	UFUNCTION(BlueprintCallable, Category = "Match|Stats")
+	void HandlePlayerInterception(AController* Interceptor);
 
+	UFUNCTION(BlueprintCallable, Category = "Match|Stats")
+	void HandlePlayerRobbed(AController* Robber);
 
-    //void HandlePlayerDeath(AController* Victim);
+#pragma endregion
+
+#pragma region Scoring
+
+	UFUNCTION(BlueprintCallable, Category = "Match|Score")
+	void AwardThiefScore(int32 TeamId, int32 ScoreToAdd);
+
+	UFUNCTION(BlueprintCallable, Category = "Match|Score")
+	void AwardEmployeeScore(int32 TeamId, int32 ScoreToAdd);
+
+#pragma endregion
+
+#pragma region Round Management
+
+	// Updates the round timer, usually triggered when an alarm goes off
+	void SetAlarmTimer(float NewTime);
+
+#pragma endregion
 
 protected:
-    UPROPERTY(EditDefaultsOnly, Category = "Round")
-    float RoundDuration = 300.f;
 
-    UPROPERTY(EditDefaultsOnly, Category = "Round")
-    int32 ExpectedPlayerCount = 4;
-    int32 ReadyPlayersCount = 0;
+#pragma region Round Configuration
 
+	UPROPERTY(EditDefaultsOnly, Category = "Round")
+	float RoundDuration = 300.f;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Round")
+	int32 ExpectedPlayerCount = 4;
+
+#pragma endregion
 
 private:
-    void StartRound(int roundNumber);
-    void OnRoundTimerExpired();
 
-    bool CheckAllThiefDead();
+#pragma region Internal Game Flow (Game loop)
 
-    void SwapAllTeamsRoles();
+	void StartRound(int roundNumber);
+	void OnRoundTimerExpired();
+	bool CheckAllThiefDead();
+	void SwapAllTeamsRoles();
+	void ResetAllPlayersHealth();
+	void TeleportPlayersToNewSpawns();
+	int32 GetNumValidPlayerStarts() const;
+	void NotifyServerReadyWithRetry();
 
-    void ResetAllPlayersHealth();
+#pragma endregion
 
-    void TeleportPlayersToNewSpawns();
+#pragma region Cached Data
 
-    int32 GetNumValidPlayerStarts() const;
+	UPROPERTY()
+	AHeistDayGameState* CachedGameState = nullptr;
 
-    void NotifyServerReadyWithRetry();
+	FTimerHandle RoundTimerHandle;
 
-    UPROPERTY()
-    AHeistDayGameState* CachedGameState = nullptr;
+	int32 ConnectedCount = 0;
+	int32 ReadyPlayersCount = 0;
+	int32 ThiefCount = 0;
+	int32 EmployeeCount = 0;
 
-    FTimerHandle RoundTimerHandle;
-    int32 ConnectedCount = 0;
+	TSet<APlayerStart*> UsedPlayerStarts;
 
-    int32 ThiefCount = 0;
-    int32 EmployeeCount = 0;
+	UPROPERTY()
+	TArray<FCarryableSpawnData> InitialCarryablesData;
 
-    TSet<APlayerStart*> UsedPlayerStarts;
-
-    UPROPERTY()
-    TArray<FCarryableSpawnData> InitialCarryablesData;
+#pragma endregion
 };
