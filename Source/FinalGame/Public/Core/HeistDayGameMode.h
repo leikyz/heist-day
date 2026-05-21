@@ -2,7 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/GameMode.h"
-#include "HeistDayGameState.h"
+#include "Core/HeistDayGameState.h"
 #include "GameFramework/PlayerStart.h"
 #include "EngineUtils.h"
 #include "Interfaces/IHttpRequest.h" 

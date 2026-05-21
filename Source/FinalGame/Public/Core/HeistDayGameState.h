@@ -2,7 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/GameState.h"
-#include "HeistDayPlayerState.h"
+#include "Core/HeistDayPlayerState.h"
 #include "HeistDayGameState.generated.h"
 
 #pragma region Enums & Structs

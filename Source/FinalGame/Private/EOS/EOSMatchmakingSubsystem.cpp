@@ -1,11 +1,11 @@
-#include "Network/Client/EOSMatchmakingSubsystem.h"
-#include "Network/Client/EOSLobbySubsystem.h"
+#include "EOS/EOSMatchmakingSubsystem.h"
+#include "EOS/EOSLobbySubsystem.h"
 #include "HttpModule.h"
 #include "Interfaces/IHttpResponse.h"
 #include "Dom/JsonObject.h"
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
-#include "Network/Client/EOSIdentitySubsystem.h"
+#include "EOS/EOSIdentitySubsystem.h"
 
 #pragma region Matchmaking Flow
 

@@ -1,5 +1,5 @@
-#include "Network/Client/EOSIdentitySubsystem.h"
-#include "Network/Client/EOSLobbySubsystem.h"
+#include "EOS/EOSIdentitySubsystem.h"
+#include "EOS/EOSLobbySubsystem.h"
 #include "OnlineSubsystemUtils.h"
 #include "Engine/GameInstance.h"
 

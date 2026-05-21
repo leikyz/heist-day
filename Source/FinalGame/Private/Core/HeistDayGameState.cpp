@@ -1,6 +1,6 @@
-#include "HeistDayGameState.h"
+#include "Core/HeistDayGameState.h"
 #include "Net/UnrealNetwork.h"
-#include "HeistDayGameMode.h"
+#include "Core/HeistDayGameMode.h"
 
 #pragma region Lifecycle & Replication
 

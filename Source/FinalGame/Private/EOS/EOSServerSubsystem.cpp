@@ -1,4 +1,4 @@
-#include "Network/Server/EOSServerSubsystem.h"
+#include "EOS/EOSServerSubsystem.h"
 #include "OnlineSubsystem.h"
 #include "OnlineSessionSettings.h"
 

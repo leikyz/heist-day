@@ -1,7 +1,7 @@
-#include "HeistDayGameMode.h"
+#include "Core/HeistDayGameMode.h"
 #include "TimerManager.h"
-#include "HeistDayPlayerState.h"
-#include "HeistDayGameState.h"
+#include "Core/HeistDayPlayerState.h"
+#include "Core/HeistDayGameState.h"
 #include "EngineUtils.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "HttpModule.h"
@@ -10,7 +10,7 @@
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
 #include "Kismet/GameplayStatics.h"
-#include "Network/Client/EOSMatchmakingSubsystem.h"
+#include "EOS/EOSMatchmakingSubsystem.h"
 
 #pragma region Lifecycle & Connection
 

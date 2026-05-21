@@ -1,6 +1,6 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
-#include "ACameraConsole.h"
+#include "Gameplay/ACameraConsole.h"
 
 // Sets default values
 AACameraConsole::AACameraConsole()
